@@ -1,0 +1,33 @@
+format_version: "13"
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: other
+
+workflows:
+  deploy:
+    description: Build the React app and deploy Firebase Hosting, Functions, and rules.
+    steps:
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - npm@1:
+          title: Install frontend dependencies
+          inputs:
+            - command: ci
+            - workdir: "$BITRISE_SOURCE_DIR/frontend-react"
+      - npm@1:
+          title: Build frontend
+          inputs:
+            - command: run build
+            - workdir: "$BITRISE_SOURCE_DIR/frontend-react"
+      - npm@1:
+          title: Install functions dependencies
+          inputs:
+            - command: install
+            - workdir: "$BITRISE_SOURCE_DIR/functions"
+      - script@1:
+          title: Deploy to Firebase
+          inputs:
+            - content: |-
+                set -euo pipefail
+                npm install -g firebase-tools
+                firebase deploy --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN"
+

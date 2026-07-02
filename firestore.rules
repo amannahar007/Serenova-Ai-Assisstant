@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isPremium() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.plan == 'premium';
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['plan', 'subscriptionStatus', 'planActivatedAt', 'planExpiresAt', 'paymentId', 'features']);
+      allow create: if isOwner(userId);
+    }
+
+    match /chats/{userId}/sessions/{sessionId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /health_sessions/{sessionId} {
+      allow read, write: if isPremium();
+    }
+
+    match /payment_orders/{orderId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if false;
+    }
+
+    match /analytics_events/{eventId} {
+      allow create: if signedIn();
+      allow read, update, delete: if false;
+    }
+  }
+}
