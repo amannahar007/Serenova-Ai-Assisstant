@@ -80,7 +80,7 @@ export default function Dashboard({ user }) {
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {activeTab === 'today' && <WellnessHub user={user} isPro={isPro} onUpgrade={() => setActiveTab('billing')} />}
         {activeTab === 'chat' && <ChatInterface user={user} isPro={isPro} />}
-        {activeTab === 'emotion' && (isPro ? <EmotionFusion user={user} /> : <Subscription user={user} setIsPro={setIsPro} />)}
+        {activeTab === 'emotion' && <EmotionFusion isPro={isPro} />}
         {activeTab === 'billing' && <Subscription user={user} setIsPro={setIsPro} isPro={isPro} />}
         {activeTab === 'admin' && isAdmin && <AdminDashboard />}
       </main>

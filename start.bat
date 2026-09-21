@@ -71,10 +71,14 @@ timeout /t 2 /nobreak >nul
 echo       Node.js backend started on http://localhost:3000
 echo.
 
-:: â”€â”€ Step 4: Start Python FastAPI Backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+:: Step 4: Start Python FastAPI Backend
 echo [4/5] Starting Python FastAPI backend...
 set PYTHON_DIR=%~dp0backend
-start "FastAPI Backend" cmd /k "cd /d "%PYTHON_DIR%" && call venv\Scripts\activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+if exist "%PYTHON_DIR%\venv\Scripts\python.exe" (
+    start "FastAPI Backend" cmd /k "cd /d "%PYTHON_DIR%" && call venv\Scripts\activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+) else (
+    start "FastAPI Backend" cmd /k "cd /d "%PYTHON_DIR%" && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+)
 timeout /t 3 /nobreak >nul
 echo       FastAPI backend started on http://localhost:8000
 echo.

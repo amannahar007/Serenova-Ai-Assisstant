@@ -1,216 +1,281 @@
-import os
-import time
-import shutil
-import logging
+"""FastAPI service for the production SERENOVA chat experience."""
+
+from __future__ import annotations
+
 import asyncio
-from typing import Optional, Dict, List
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Request, Depends
+import logging
+import os
+import shutil
+import time
+import uuid
 from contextlib import asynccontextmanager
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pathlib import Path
+from typing import Any
 
 import firebase_admin
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
-
+from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.background import BackgroundTask
 
-from ai_engine.chat import chat_with_SERENOVA, chat_stream_SERENOVA
-from ai_engine.rag import process_document, query_rag, init_models
-from ai_engine.voice import transcribe_audio, generate_speech
+from ai_engine.chat import AssistantError, chat_stream_SERENOVA, chat_with_SERENOVA
+from ai_engine.rag import process_document, retrieve_document_context
 from ai_engine.vision import analyze_gesture
+from ai_engine.voice import generate_speech, transcribe_audio
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+load_dotenv()
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
-# Initialize Firebase Admin
-try:
-    firebase_admin.initialize_app(options={'projectId': 'SERENOVA-ai'})
-except ValueError:
-    pass
+MAX_INPUT_LENGTH = 4_000
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+TEMP_UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", Path(__file__).resolve().parent / "temp_uploads"))
 
-security = HTTPBearer()
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def _truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _init_firebase() -> None:
+    if firebase_admin._apps:
+        return
     try:
-        decoded_token = firebase_auth.verify_id_token(credentials.credentials)
-        return decoded_token
-    except Exception as e:
-        logger.warning(f"Auth failed: {str(e)}. Falling back to local development user.")
-        # Fallback for local development when Firebase Admin isn't configured/authenticated locally
-        return {"uid": "local_dev_user", "email": "dev@serenova.ai"}
+        firebase_admin.initialize_app(options={"projectId": os.getenv("FIREBASE_PROJECT_ID", "serenova-ai")})
+    except Exception as exc:
+        # Authentication remains closed; a local bypass requires an explicit opt-in below.
+        logger.warning("Firebase Admin initialization failed: %s", exc)
 
 
-# 1. Initialize Limiter (IP-based, 5 req/min)
+_init_firebase()
+security = HTTPBearer(auto_error=False)
 limiter = Limiter(key_func=get_remote_address)
 
+
+async def verify_token(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict[str, Any]:
+    """Verify every token. Local development must be deliberately opted into."""
+    if _truthy("ALLOW_INSECURE_DEV_AUTH") and request.client and request.client.host in LOOPBACK_HOSTS:
+        return {"uid": "local_dev_user", "email": "dev@localhost"}
+
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in is required.", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        return firebase_auth.verify_id_token(credentials.credentials, check_revoked=True)
+    except Exception as exc:
+        logger.info("Rejected Firebase token: %s", type(exc).__name__)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your sign-in token is invalid or expired.", headers={"WWW-Authenticate": "Bearer"}) from exc
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("FastAPI starting — models loading in background...")
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, init_models)
+async def lifespan(_: FastAPI):
+    TEMP_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     yield
-    print("Shutting down...")
 
-app = FastAPI(
-    title="SERENOVA API",
-    description="Optimized Backend API for the SERENOVA with rate limiting, caching, and robust error handling.",
-    version="1.2.0",
-    lifespan=lifespan
-)
 
-# Register Limiter
+app = FastAPI(title="SERENOVA API", version="2.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Allow cross-origin requests
+origins = [origin.strip() for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
+
+class ChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant|model)$")
+    content: str = Field(min_length=1, max_length=6_000)
+
+
 class ChatRequest(BaseModel):
-    message: str = Field(..., max_length=1000, description="User input message, max 1000 characters")
-    session_id: Optional[str] = None
-    stream: Optional[bool] = False
-    history: Optional[List[Dict[str, str]]] = []
-    memory: Optional[Dict[str, object]] = Field(default_factory=dict)
-    preferred_language: Optional[str] = None
+    message: str = Field(min_length=1, max_length=MAX_INPUT_LENGTH)
+    session_id: str | None = Field(default=None, max_length=128)
+    stream: bool = False
+    history: list[ChatMessage] = Field(default_factory=list, max_length=32)
+    memory: dict[str, Any] = Field(default_factory=dict)
+    preferred_language: str | None = Field(default=None, max_length=16)
+
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
 
-# 2. In-Memory Data Structures for throttling
-last_request_time: Dict[str, float] = {}
-THROTTLE_DELAY = 0.0  # seconds between requests per user
-MAX_INPUT_LENGTH = 1000 # chars
+
+def _history_payload(history: list[ChatMessage]) -> list[dict[str, str]]:
+    return [{"role": item.role, "content": item.content} for item in history]
+
+
+def _ensure_nonempty(message: str) -> str:
+    cleaned = message.strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+    return cleaned
+
+
+def _remove_paths(*paths: Path) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove temporary file %s", path)
+
 
 @app.get("/")
-def read_root():
-    return {"message": "Welcome to SERENOVA API. The backend is running and optimized!"}
+async def root() -> dict[str, str]:
+    return {"message": "SERENOVA API is running."}
+
 
 @app.get("/health")
-def health():
-    from ai_engine.rag import MODELS_READY
+async def health() -> dict[str, Any]:
+    from ai_engine import rag
+
     return {
         "status": "ok",
-        "models_ready": MODELS_READY,
-        "message": "Fully operational" if MODELS_READY else "Loading models in background..."
+        "provider": os.getenv("LLM_PROVIDER", "gemini"),
+        "provider_configured": bool(os.getenv("GEMINI_API_KEY")) if os.getenv("LLM_PROVIDER", "gemini") == "gemini" else True,
+        "document_models_ready": rag.MODELS_READY,
     }
 
+
 @app.post("/chat", response_model=ChatResponse)
-@limiter.limit("1000/minute")
-async def chat_endpoint(request: Request, req: ChatRequest, user=Depends(verify_token)):
-    user_input = req.message.strip()
-    
-    # Validation 1: Empty input
-    if not user_input:
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
-        
-    # Validation 2: Input size limit
-    if len(user_input) > MAX_INPUT_LENGTH:
-        raise HTTPException(status_code=400, detail=f"Input text exceeds maximum length of {MAX_INPUT_LENGTH} characters.")
-        
-    user_ip = get_remote_address(request)
-    session_id = req.session_id or f"session_{user['uid']}"
-    
-    # Validation 3: Request Throttling (Minimum delay between requests)
-    current_time = time.time()
-    if user_ip in last_request_time:
-        time_since_last = current_time - last_request_time[user_ip]
-        if time_since_last < THROTTLE_DELAY:
-            raise HTTPException(status_code=429, detail=f"Too fast! Please wait {THROTTLE_DELAY - time_since_last:.1f} seconds.")
-    last_request_time[user_ip] = current_time
-    
-    # 4. Process Chat 
+@limiter.limit("30/minute")
+async def chat_endpoint(request: Request, req: ChatRequest, _: dict[str, Any] = Depends(verify_token)):
+    message = _ensure_nonempty(req.message)
+    history = _history_payload(req.history)
     if req.stream:
         return StreamingResponse(
-            chat_stream_SERENOVA(user_input, req.history, req.memory, req.preferred_language),
-            media_type="text/event-stream"
+            chat_stream_SERENOVA(message, history, req.memory, req.preferred_language),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
         )
-    else:
-        result = await chat_with_SERENOVA(user_input, session_id, req.history, req.memory, req.preferred_language)
-        if result["response"].startswith("Error:"):
-            raise HTTPException(status_code=503, detail=result["response"])
-        return ChatResponse(response=result["response"], session_id=result["session_id"])
+    try:
+        result = await chat_with_SERENOVA(message, req.session_id, history, req.memory, req.preferred_language)
+    except AssistantError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return ChatResponse(**result)
+
 
 @app.post("/upload")
-@limiter.limit("1000/minute")
-async def upload_file(request: Request, file: UploadFile = File(...), user=Depends(verify_token)):
+@limiter.limit("10/minute")
+async def upload_file(request: Request, file: UploadFile = File(...), user: dict[str, Any] = Depends(verify_token)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Choose a PDF or TXT file to upload.")
+    if file.size is not None and file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="The document is larger than the 10 MB limit.")
     try:
-        result = process_document(file)
+        result = await asyncio.to_thread(process_document, file, user["uid"])
         return {"message": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        await file.close()
+
 
 @app.post("/chat-rag", response_model=ChatResponse)
-@limiter.limit("1000/minute")
-async def chat_rag_endpoint(request: Request, req: ChatRequest, user=Depends(verify_token)):
+@limiter.limit("30/minute")
+async def chat_rag_endpoint(request: Request, req: ChatRequest, user: dict[str, Any] = Depends(verify_token)):
+    message = _ensure_nonempty(req.message)
     try:
-        result = await asyncio.to_thread(query_rag, req.message)
-        return ChatResponse(
-            response=result,
-            session_id=req.session_id or "rag_session"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        context = await asyncio.to_thread(retrieve_document_context, message, user["uid"])
+        if not context:
+            return ChatResponse(response="I couldn't find relevant information in your uploaded documents.", session_id=req.session_id or str(uuid.uuid4()))
+        result = await chat_with_SERENOVA(message, req.session_id, _history_payload(req.history), req.memory, req.preferred_language, context)
+        return ChatResponse(**result)
+    except AssistantError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 
 @app.post("/speech-to-speech")
-@limiter.limit("1000/minute")
-async def speech_to_speech_endpoint(request: Request, audio: UploadFile = File(...), session_id: str = Form(None), user=Depends(verify_token)):
+@limiter.limit("10/minute")
+async def speech_to_speech_endpoint(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    audio: UploadFile = File(...),
+    session_id: str | None = Form(default=None),
+    user: dict[str, Any] = Depends(verify_token),
+):
+    input_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4()}{Path(audio.filename or '').suffix or '.webm'}"
+    output_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4()}.mp3"
     try:
-        temp_audio_path = f"./temp_uploads/{audio.filename}"
-        os.makedirs("./temp_uploads", exist_ok=True)
-        with open(temp_audio_path, "wb") as f:
-            shutil.copyfileobj(audio.file, f)
-            
-        user_text = await asyncio.to_thread(transcribe_audio, temp_audio_path)
-        chat_result = await chat_with_SERENOVA(user_text, session_id, [])
-        ai_text = chat_result["response"]
-        
-        output_audio_path = f"./temp_uploads/response_{audio.filename}.mp3"
-        await generate_speech(ai_text, output_audio_path)
-        os.remove(temp_audio_path)
-        
+        with input_path.open("wb") as buffer:
+            copied = 0
+            while chunk := await audio.read(1024 * 1024):
+                copied += len(chunk)
+                if copied > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Audio is larger than the 10 MB limit.")
+                buffer.write(chunk)
+        transcript = await asyncio.to_thread(transcribe_audio, str(input_path))
+        result = await chat_with_SERENOVA(transcript, session_id)
+        await generate_speech(result["response"], str(output_path))
+        background_tasks.add_task(_remove_paths, input_path, output_path)
         return FileResponse(
-            output_audio_path, 
-            media_type="audio/mpeg", 
-            headers={"X-Transcript": user_text, "X-AI-Response": ai_text.replace("\n", " ")}
+            output_path,
+            media_type="audio/mpeg",
+            background=background_tasks,
+            headers={"X-Transcript": transcript, "X-AI-Response": result["response"].replace("\n", " ")[:2_000]},
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except AssistantError as exc:
+        _remove_paths(input_path, output_path)
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except HTTPException:
+        _remove_paths(input_path, output_path)
+        raise
+    except Exception as exc:
+        logger.exception("speech-to-speech failed")
+        _remove_paths(input_path, output_path)
+        raise HTTPException(status_code=503, detail="Voice processing is temporarily unavailable.") from exc
+    finally:
+        await audio.close()
+
 
 @app.post("/gesture-chat")
-@limiter.limit("1000/minute")
-async def gesture_chat_endpoint(request: Request, image: UploadFile = File(...), session_id: str = Form(None), user=Depends(verify_token)):
+@limiter.limit("10/minute")
+async def gesture_chat_endpoint(
+    request: Request,
+    image: UploadFile = File(...),
+    session_id: str | None = Form(default=None),
+    _: dict[str, Any] = Depends(verify_token),
+):
+    image_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4()}{Path(image.filename or '').suffix or '.jpg'}"
     try:
-        temp_image_path = f"./temp_uploads/{image.filename}"
-        os.makedirs("./temp_uploads", exist_ok=True)
-        with open(temp_image_path, "wb") as f:
-            shutil.copyfileobj(image.file, f)
-            
-        gesture_analysis = await asyncio.to_thread(analyze_gesture, temp_image_path)
-        prompt = f"[SYSTEM: A gesture was detected from the user's camera: {gesture_analysis}]. Please respond to the user based on this gesture."
-        chat_result = await chat_with_SERENOVA(prompt, session_id, [])
-        ai_text = chat_result["response"]
-        os.remove(temp_image_path)
-        
-        return {
-            "gesture_detected": gesture_analysis,
-            "response": ai_text,
-            "session_id": chat_result["session_id"]
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        with image_path.open("wb") as buffer:
+            copied = 0
+            while chunk := await image.read(1024 * 1024):
+                copied += len(chunk)
+                if copied > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Image is larger than the 10 MB limit.")
+                buffer.write(chunk)
+        gesture = await asyncio.to_thread(analyze_gesture, str(image_path))
+        result = await chat_with_SERENOVA(f"The camera detected this hand gesture: {gesture}. Respond helpfully and do not infer mental state.", session_id)
+        return {"gesture_detected": gesture, "response": result["response"], "session_id": result["session_id"]}
+    except AssistantError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("gesture-chat failed")
+        raise HTTPException(status_code=503, detail="Gesture analysis is temporarily unavailable.") from exc
+    finally:
+        _remove_paths(image_path)
+        await image.close()
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)

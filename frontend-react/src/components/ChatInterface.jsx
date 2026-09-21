@@ -448,19 +448,31 @@ export default function ChatInterface({ user, isPro }) {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            const data = trimmed.slice(6);
-            if (data === '[DONE]') {
-              console.log("[ChatInterface] Stream received [DONE] signal");
-              break;
+          if (trimmed.startsWith('data:')) {
+            const rawData = trimmed.slice(5).trim();
+            if (!rawData || rawData === '[DONE]') {
+              continue;
             }
             try {
-              const parsed = JSON.parse(`"${data}"`);
-              fullResponse += parsed;
-              setStreamingContent(prev => prev + parsed);
-            } catch {
-              fullResponse += data;
-              setStreamingContent(prev => prev + data);
+              const payload = JSON.parse(rawData);
+              if (typeof payload === 'object' && payload !== null) {
+                if (payload.text) {
+                  fullResponse += payload.text;
+                  setStreamingContent(prev => prev + payload.text);
+                } else if (payload.message) {
+                  throw new Error(payload.message);
+                }
+              } else if (typeof payload === 'string') {
+                fullResponse += payload;
+                setStreamingContent(prev => prev + payload);
+              }
+            } catch (jsonErr) {
+              if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+                throw jsonErr;
+              }
+              // Raw text chunk fallback
+              fullResponse += rawData;
+              setStreamingContent(prev => prev + rawData);
             }
             scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
           }

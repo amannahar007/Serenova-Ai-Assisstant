@@ -44,7 +44,8 @@ async function callGemini(messages) {
         return "Error: GEMINI_API_KEY is not defined in the environment.";
     }
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     
     let systemPrompt = "";
     const contents = [];

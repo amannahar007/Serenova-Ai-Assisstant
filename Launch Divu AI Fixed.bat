@@ -16,8 +16,7 @@ cd ..
 echo [2/3] Starting Node.js backend on port 3000...
 start "Node Backend" cmd /k "cd /d %~dp0backend-node && node server.js"
 
-echo [3/3] Starting Python FastAPI on port 8000...
-start "Python Backend" cmd /k "cd /d %~dp0backend && venv\Scripts\activate && uvicorn main:app --reload --port 8000"
+start "Python Backend" cmd /k "cd /d %~dp0backend && (if exist venv\Scripts\python.exe (venv\Scripts\activate && uvicorn main:app --reload --port 8000) else (python -m uvicorn main:app --reload --port 8000))"
 
 echo [4/4] Starting React frontend on port 5173...
 timeout /t 3 /nobreak > nul

@@ -1,109 +1,126 @@
+"""Per-user, opt-in local document retrieval.
+
+Generic chat deliberately does not retrieve from uploaded files. Callers must use the
+document endpoint, which keeps private uploads isolated per authenticated user.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
 import os
 import shutil
+import threading
+from pathlib import Path
+
 from fastapi import UploadFile
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from sentence_transformers import CrossEncoder
-from ai_engine.chat import call_ollama
 
-MODEL_CACHE = os.path.join(os.path.dirname(__file__), '..', 'models_cache')
-os.makedirs(MODEL_CACHE, exist_ok=True)
-UPLOAD_DIR = "./temp_uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+logger = logging.getLogger(__name__)
 
+MODEL_CACHE = Path(__file__).resolve().parent.parent / "models_cache"
+CHROMA_DIR = Path(os.getenv("CHROMA_DIR", Path(__file__).resolve().parent.parent / "chroma_db"))
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", Path(__file__).resolve().parent.parent / "temp_uploads"))
+MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".txt"}
+
+_model_lock = threading.Lock()
 cross_encoder = None
 embeddings = None
-vector_store = None
 MODELS_READY = False
 
-def init_models():
-    global cross_encoder, embeddings, vector_store, MODELS_READY
-    if MODELS_READY: return
-    print("Loading AI models from cache...")
-    try:
-        cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', cache_dir=MODEL_CACHE)
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2", cache_folder=MODEL_CACHE)
-        vector_store = Chroma(
-            collection_name="SERENOVA_rag_collection",
-            embedding_function=embeddings,
-            persist_directory="./chroma_db"
-        )
-        print("Models loaded successfully from cache")
-        MODELS_READY = True
-    except Exception as e:
-        print(f"Model load failed: {e}")
-        print("Run: python download_models.py first")
-        MODELS_READY = False
 
-def process_document(file: UploadFile) -> str:
-    if not MODELS_READY:
-        return "Models are still loading in the background. Please try again in a moment."
-    # Save file temporarily
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
+def init_models() -> bool:
+    """Lazily initialize heavy local models only when document RAG is requested."""
+    global cross_encoder, embeddings, MODELS_READY
+    if MODELS_READY:
+        return True
+    with _model_lock:
+        if MODELS_READY:
+            return True
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            from sentence_transformers import CrossEncoder
+
+            MODEL_CACHE.mkdir(parents=True, exist_ok=True)
+            cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", cache_dir=str(MODEL_CACHE))
+            embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2", cache_folder=str(MODEL_CACHE))
+            MODELS_READY = True
+            logger.info("Local document-retrieval models loaded")
+            return True
+        except Exception as exc:
+            logger.exception("Document-retrieval model initialization failed: %s", exc)
+            return False
+
+
+def _collection_name(user_id: str) -> str:
+    digest = hashlib.sha256(user_id.encode("utf-8")).hexdigest()
+    return f"serenova_{digest[:24]}"
+
+
+def _vector_store(user_id: str):
+    if not init_models():
+        raise RuntimeError("Document search is unavailable. Install the RAG dependencies and model runtime, then try again.")
+    from langchain_chroma import Chroma
+
+    CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+    return Chroma(
+        collection_name=_collection_name(user_id),
+        embedding_function=embeddings,
+        persist_directory=str(CHROMA_DIR),
+    )
+
+
+def _safe_upload_path(filename: str) -> Path:
+    safe_name = Path(filename or "").name
+    extension = Path(safe_name).suffix.lower()
+    if not safe_name or extension not in ALLOWED_EXTENSIONS:
+        raise ValueError("Only PDF and TXT files are supported.")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    return UPLOAD_DIR / f"{hashlib.sha256(os.urandom(32)).hexdigest()}{extension}"
+
+
+def process_document(file: UploadFile, user_id: str) -> str:
+    """Index one authenticated user's document into their isolated collection."""
+    destination = _safe_upload_path(file.filename or "")
+    copied = 0
     try:
-        # Load document
-        if file.filename.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-        elif file.filename.endswith(".txt"):
-            loader = TextLoader(file_path, encoding='utf-8')
-        else:
-            return "Unsupported file type. Please upload a PDF or TXT file."
-            
+        with destination.open("wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                copied += len(chunk)
+                if copied > MAX_DOCUMENT_BYTES:
+                    raise ValueError("The document is larger than the 10 MB limit.")
+                buffer.write(chunk)
+
+        from langchain_community.document_loaders import PyPDFLoader, TextLoader
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+        loader = PyPDFLoader(str(destination)) if destination.suffix == ".pdf" else TextLoader(str(destination), encoding="utf-8")
         documents = loader.load()
-        
-        # Split text into chunks
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-        chunks = text_splitter.split_documents(documents)
-        
-        # Add to Vector Store
-        vector_store.add_documents(chunks)
-        
-        return f"Successfully processed {file.filename}. Added {len(chunks)} chunks to memory."
-        
+        chunks = RecursiveCharacterTextSplitter(chunk_size=1_000, chunk_overlap=150).split_documents(documents)
+        if not chunks:
+            raise ValueError("No readable text was found in that document.")
+        for chunk in chunks:
+            chunk.metadata = {**chunk.metadata, "source": Path(file.filename or "document").name}
+        _vector_store(user_id).add_documents(chunks)
+        return f"Indexed {len(chunks)} chunks from {Path(file.filename or 'document').name}."
     finally:
-        # Clean up temporary file
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if destination.exists():
+            destination.unlink()
 
-def query_rag(query: str) -> str:
-    if not MODELS_READY:
-        return "Models are still loading in the background. Please try again in a moment."
-    # Retrieve relevant chunks (broad search)
-    retriever = vector_store.as_retriever(search_kwargs={"k": 10})
-    docs = retriever.invoke(query)
-    
+
+def retrieve_document_context(query: str, user_id: str, limit: int = 3) -> str:
+    """Return the most relevant text, or an empty string when this user has no match."""
+    store = _vector_store(user_id)
+    docs = store.similarity_search(query, k=8)
     if not docs:
-        return "I couldn't find any relevant context in my uploaded documents."
-        
-    # Re-rank using CrossEncoder
-    pairs = [[query, doc.page_content] for doc in docs]
-    scores = cross_encoder.predict(pairs)
-    
-    # Sort docs by score descending
-    scored_docs = list(zip(scores, docs))
-    scored_docs.sort(key=lambda x: x[0], reverse=True)
-    
-    # Take top 3 most relevant docs
-    top_docs = [doc for score, doc in scored_docs[:3]]
-    
-    context = "\n\n".join([doc.page_content for doc in top_docs])
-    
-    messages = [
-        {
-            "role": "system",
-            "content": f"You are SERENOVA, a helpful AI assistant. Use the following context to answer the user's question. If the context doesn't contain the answer, just say that you don't know based on the provided documents.\n\nContext:\n{context}"
-        },
-        {
-            "role": "user",
-            "content": query
-        }
-    ]
-    
-    # Generate answer using Ollama
-    response = call_ollama(messages)
-    return response
+        return ""
+
+    if cross_encoder is not None:
+        scores = cross_encoder.predict([[query, doc.page_content] for doc in docs])
+        docs = [doc for _, doc in sorted(zip(scores, docs), key=lambda item: item[0], reverse=True)]
+
+    selected = docs[:limit]
+    return "\n\n".join(
+        f"[Source: {doc.metadata.get('source', 'uploaded document')}]\n{doc.page_content[:4_000]}"
+        for doc in selected
+    )
