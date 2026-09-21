@@ -162,11 +162,11 @@ async function chatWithSERENOVA(message, sessionId, options = {}) {
     let session = await ChatSession.findOne({ sessionId });
     if (!session) session = new ChatSession({ sessionId, messages: [] });
     
-    // Dynamic System Prompt based on Emotion
-    let systemContent = "You are SERENOVA, a friendly AI Assistant.";
-    if (emotionData.emotion === 'sad') systemContent += " The user seems sad, be extra supportive and empathetic.";
-    if (emotionData.emotion === 'angry') systemContent += " The user seems frustrated, be calm, professional and helpful.";
-    if (emotionData.emotion === 'ecstatic') systemContent += " The user is very happy, be energetic and celebratory!";
+    // Dynamic System Prompt based on Emotion & SERENOVA v2.0 Quantum Edition
+    let systemContent = "You are SERENOVA (v2.0 Quantum Edition), an advanced, autonomous personal assistant and Universal Knowledge & Health AI. Lead directly with the answer in sentence 1 without filler phrases. Use clean markdown formatting with bullet points and bold headers.";
+    if (emotionData.emotion === 'sad') systemContent += " Detected tonality: Sad. Be supportive, calm, and empathetic.";
+    if (emotionData.emotion === 'angry') systemContent += " Detected tonality: Frustrated. Be precise, calm, professional, and directly helpful.";
+    if (emotionData.emotion === 'ecstatic' || emotionData.emotion === 'happy') systemContent += " Detected tonality: Positive. Be encouraging and proactive.";
 
     const systemPrompt = { role: "system", content: systemContent };
     const historyMessages = session.messages.map(msg => ({ role: msg.role, content: msg.content }));
