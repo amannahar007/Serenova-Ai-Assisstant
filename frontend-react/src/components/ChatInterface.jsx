@@ -395,8 +395,14 @@ export default function ChatInterface({ user, isPro }) {
     try {
       const nextMemory = await persistMemory(userText);
       console.log("[ChatInterface] Fetching auth token");
-      // Get auth token
-      const token = await user.getIdToken();
+      let token = '';
+      try {
+        if (user && typeof user.getIdToken === 'function') {
+          token = await user.getIdToken();
+        }
+      } catch (authErr) {
+        console.warn("[ChatInterface] Auth token retrieval skipped/failed", authErr);
+      }
       
       console.log("[ChatInterface] Filtering history context");
       // Get history (last 10 messages)
@@ -406,35 +412,76 @@ export default function ChatInterface({ user, isPro }) {
         .map(m => ({ role: m.role || 'user', content: typeof m.content === 'string' ? m.content : "" }));
 
       console.log("[ChatInterface] Dispatching POST request to AI Engine");
-      // 4. Fetch Response from local/remote LLM backend
       abortControllerRef.current = new AbortController();
-      const backendUrl = import.meta.env.VITE_AI_BACKEND_URL || `http://${window.location.hostname}:8000`;
-      const chatUrl = `${backendUrl.replace(/\/$/, '')}/chat`;
-      const response = await fetch(chatUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          message: userText, 
-          session_id: currentSessionId, 
-          stream: true,
-          history: history,
-          memory: nextMemory,
-          preferred_language: preferredLanguageRef.current
-        }),
-        signal: abortControllerRef.current.signal
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      // Candidate backend URLs in priority order
+      const candidateBases = [
+        import.meta.env.VITE_AI_BACKEND_URL,
+        import.meta.env.VITE_PYTHON_BACKEND_URL,
+        `http://${window.location.hostname}:8000`,
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        import.meta.env.VITE_NODE_BACKEND_URL,
+        'http://localhost:3000/api'
+      ].filter(Boolean);
+
+      // Remove duplicates
+      const uniqueBases = Array.from(new Set(candidateBases.map(b => b.replace(/\/$/, ''))));
+
+      let response = null;
+      let lastFetchErr = null;
+
+      for (const base of uniqueBases) {
+        const targetUrl = base.endsWith('/chat') ? base : `${base}/chat`;
+        try {
+          console.log(`[ChatInterface] Attempting connection to: ${targetUrl}`);
+          const res = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : 'Bearer dev_local_token'
+            },
+            body: JSON.stringify({ 
+              message: userText, 
+              session_id: currentSessionId, 
+              stream: true,
+              history: history,
+              memory: nextMemory,
+              preferred_language: preferredLanguageRef.current
+            }),
+            signal: abortControllerRef.current.signal
+          });
+
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            console.warn(`[ChatInterface] ${targetUrl} returned status ${res.status}`);
+            lastFetchErr = new Error(`HTTP ${res.status}`);
+          }
+        } catch (fetchErr) {
+          if (fetchErr.name === 'AbortError') throw fetchErr;
+          console.warn(`[ChatInterface] Connection failed to ${targetUrl}:`, fetchErr.message);
+          lastFetchErr = fetchErr;
+        }
       }
 
-      console.log("[ChatInterface] Connection established, reading stream...");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
+      if (!response) {
+        throw new Error(lastFetchErr ? lastFetchErr.message : 'All backend targets unreachable');
+      }
+
+      console.log("[ChatInterface] Connection established, reading response...");
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!contentType.includes('text/event-stream') && !contentType.includes('stream')) {
+        // Handle standard JSON response
+        const jsonResult = await response.json();
+        fullResponse = jsonResult.response || jsonResult.detail || JSON.stringify(jsonResult);
+        setStreamingContent(fullResponse);
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -478,9 +525,10 @@ export default function ChatInterface({ user, isPro }) {
           }
         }
       }
+      }
 
       console.log("[ChatInterface] Stream complete. Async saving AI response to RTDB...");
-      // 5. Try to save complete AI response to RTDB (Asynchronous, no await)
+      // 5. Save complete AI response to RTDB (Asynchronous, no await)
       if (dbEnabled) {
         push(ref(rtdb, `users/${user.uid}/chats/${currentSessionId}/messages`), {
           role: 'assistant',

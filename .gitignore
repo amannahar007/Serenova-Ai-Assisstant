@@ -2,6 +2,8 @@
 node_modules/
 npm-debug.log
 yarn-error.log
+dist/
+build/
 
 # Python
 __pycache__/
@@ -11,6 +13,13 @@ __pycache__/
 env/
 venv/
 ENV/
+*.log
+
+# Models & Large Caches
+models_cache/
+*.safetensors
+backend/ai_engine/facial_expression/models/fer_model.pt
+backend-node/node_bin/
 
 # Temp uploads & DBs
 temp_uploads/

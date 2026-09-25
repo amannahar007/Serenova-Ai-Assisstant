@@ -1,0 +1,194 @@
+{
+  "n_splits": 5,
+  "fold_accuracies": [
+    0.7457627118644068,
+    0.6724137931034483,
+    0.7068965517241379,
+    0.6724137931034483,
+    0.6206896551724138
+  ],
+  "mean_accuracy": 0.683635300993571,
+  "std_accuracy": 0.04150879370341345,
+  "variance": 0.001722979954712536,
+  "classification_report": {
+    "anger": {
+      "precision": 0.65,
+      "recall": 0.5652173913043478,
+      "f1-score": 0.6046511627906976,
+      "support": 46.0
+    },
+    "disgust": {
+      "precision": 0.5714285714285714,
+      "recall": 0.3333333333333333,
+      "f1-score": 0.42105263157894735,
+      "support": 12.0
+    },
+    "fear": {
+      "precision": 0.5952380952380952,
+      "recall": 0.5681818181818182,
+      "f1-score": 0.5813953488372093,
+      "support": 44.0
+    },
+    "happy": {
+      "precision": 0.8688524590163934,
+      "recall": 0.9298245614035088,
+      "f1-score": 0.8983050847457628,
+      "support": 57.0
+    },
+    "neutral": {
+      "precision": 0.5964912280701754,
+      "recall": 0.6415094339622641,
+      "f1-score": 0.6181818181818182,
+      "support": 53.0
+    },
+    "sad": {
+      "precision": 0.6621621621621622,
+      "recall": 0.7777777777777778,
+      "f1-score": 0.7153284671532847,
+      "support": 63.0
+    },
+    "surprise": {
+      "precision": 0.8,
+      "recall": 0.5,
+      "f1-score": 0.6153846153846154,
+      "support": 16.0
+    },
+    "accuracy": 0.6838487972508591,
+    "macro avg": {
+      "precision": 0.6777389308450569,
+      "recall": 0.6165491879947214,
+      "f1-score": 0.6363284469531908,
+      "support": 291.0
+    },
+    "weighted avg": {
+      "precision": 0.682482682183811,
+      "recall": 0.6838487972508591,
+      "f1-score": 0.6780991542512451,
+      "support": 291.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      26,
+      2,
+      4,
+      2,
+      9,
+      3,
+      0
+    ],
+    [
+      3,
+      4,
+      0,
+      0,
+      0,
+      5,
+      0
+    ],
+    [
+      2,
+      1,
+      25,
+      2,
+      5,
+      7,
+      2
+    ],
+    [
+      1,
+      0,
+      0,
+      53,
+      3,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      5,
+      3,
+      34,
+      9,
+      0
+    ],
+    [
+      4,
+      0,
+      3,
+      1,
+      6,
+      49,
+      0
+    ],
+    [
+      2,
+      0,
+      5,
+      0,
+      0,
+      1,
+      8
+    ]
+  ],
+  "threshold_calibration": [
+    {
+      "threshold": 0.4,
+      "accepted_accuracy": 68.38,
+      "accepted_pct": 93.5,
+      "uncertain_count": 19
+    },
+    {
+      "threshold": 0.5,
+      "accepted_accuracy": 70.04,
+      "accepted_pct": 81.4,
+      "uncertain_count": 54
+    },
+    {
+      "threshold": 0.6,
+      "accepted_accuracy": 73.17,
+      "accepted_pct": 70.4,
+      "uncertain_count": 86
+    },
+    {
+      "threshold": 0.65,
+      "accepted_accuracy": 73.96,
+      "accepted_pct": 66.0,
+      "uncertain_count": 99
+    },
+    {
+      "threshold": 0.7,
+      "accepted_accuracy": 77.35,
+      "accepted_pct": 62.2,
+      "uncertain_count": 110
+    },
+    {
+      "threshold": 0.75,
+      "accepted_accuracy": 77.78,
+      "accepted_pct": 58.8,
+      "uncertain_count": 120
+    },
+    {
+      "threshold": 0.8,
+      "accepted_accuracy": 80.0,
+      "accepted_pct": 55.0,
+      "uncertain_count": 131
+    },
+    {
+      "threshold": 0.85,
+      "accepted_accuracy": 81.16,
+      "accepted_pct": 47.4,
+      "uncertain_count": 153
+    }
+  ],
+  "classes": [
+    "anger",
+    "disgust",
+    "fear",
+    "happy",
+    "neutral",
+    "sad",
+    "surprise"
+  ]
+}
