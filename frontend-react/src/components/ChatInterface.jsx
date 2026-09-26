@@ -90,41 +90,41 @@ function inferMemoryFromMessage(text, currentMemory, preferredLanguage) {
 
 const MarkdownMessage = ({ content }) => {
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0">
+    <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0 text-text-primary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
         code({node, inline, className, children, ...props}) {
           const match = /language-(\w+)/.exec(className || '')
           return !inline && match ? (
-            <div className="rounded-md overflow-hidden my-2 border border-glass-border shadow-sm">
-              <div className="bg-[#1e1e1e] px-4 py-1 text-xs text-slate-400 font-mono border-b border-gray-700/50 flex justify-between">
+            <div className="rounded-neu-md overflow-hidden my-3 neu-card-flat border border-[#ded7c8]">
+              <div className="bg-[#1c2224] px-4 py-1.5 text-xs text-slate-300 font-mono border-b border-gray-700/60 flex justify-between items-center">
                 <span>{match[1]}</span>
               </div>
               <SyntaxHighlighter
                 style={vscDarkPlus}
                 language={match[1]}
                 PreTag="div"
-                customStyle={{ margin: 0, padding: '1rem', background: '#1e1e1e' }}
+                customStyle={{ margin: 0, padding: '1rem', background: '#1c2224' }}
                 {...props}
               >
                 {String(children).replace(/\n$/, '')}
               </SyntaxHighlighter>
             </div>
           ) : (
-            <code className="bg-black/5 px-1.5 py-0.5 rounded-md font-mono text-[13px] text-neon-cyan border border-glass-border" {...props}>
+            <code className="neu-inset px-2 py-0.5 rounded-md font-mono text-[13px] text-neu-teal font-semibold border border-[#ded7c8]/50" {...props}>
               {children}
             </code>
           )
         },
         table({children}) {
-          return <div className="overflow-x-auto my-4"><table className="min-w-full divide-y divide-glass-border border border-glass-border rounded-lg">{children}</table></div>
+          return <div className="overflow-x-auto my-4 rounded-neu-md neu-card-flat p-2"><table className="min-w-full divide-y divide-[#ded7c8] text-text-primary">{children}</table></div>
         },
         th({children}) {
-          return <th className="px-4 py-2 bg-black/5 text-left text-xs font-semibold uppercase tracking-wider">{children}</th>
+          return <th className="px-4 py-2.5 bg-neu-dark text-left text-xs font-bold uppercase tracking-wider text-text-dim">{children}</th>
         },
         td({children}) {
-          return <td className="px-4 py-2 whitespace-nowrap text-sm border-t border-glass-border">{children}</td>
+          return <td className="px-4 py-2.5 whitespace-nowrap text-sm border-t border-[#ded7c8] text-text-primary">{children}</td>
         }
       }}
     >
@@ -139,21 +139,30 @@ const MessageBubble = memo(({ msg, isLast, onCopy, onRegenerate, isCopied, isReg
   const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) || "";
   
   return (
-    <div className={`flex gap-4 max-w-[80%] ${msg.role === 'user' ? 'self-end flex-row-reverse' : ''} animate-[slideIn_0.3s_ease-out]`}>
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border border-glass-border font-serif ${msg.role === 'user' ? 'bg-neon-cyan text-white border-none' : 'bg-slate text-text-dim'}`}>
+    <div className={`flex gap-4 max-w-[85%] ${msg.role === 'user' ? 'self-end flex-row-reverse' : ''} animate-[slideIn_0.3s_ease-out]`}>
+      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-neu-raised-sm ${msg.role === 'user' ? 'bg-gradient-to-br from-neu-teal-light to-neu-teal text-white' : 'bg-neu-base text-neu-teal border border-white/80 font-serif'}`}>
         {msg.role === 'user' ? 'U' : 'D'}
       </div>
-      <div className="flex flex-col gap-1 w-full">
-        <div className={`p-4 rounded-2xl text-[15px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-slate border border-glass-border rounded-tr-sm whitespace-pre-wrap' : 'bg-white border border-glass-border rounded-tl-sm w-full overflow-hidden'}`}>
+      <div className="flex flex-col gap-1.5 w-full">
+        <div className={`p-4 rounded-neu-lg text-[15px] leading-relaxed ${msg.role === 'user' ? 'bg-[#e4e0d4] neu-card-flat rounded-tr-sm whitespace-pre-wrap text-text-primary border border-white/40' : 'bg-neu-base neu-card rounded-tl-sm w-full overflow-hidden text-text-primary border border-white/80'}`}>
           {msg.role === 'user' ? content : <MarkdownMessage content={content} />}
         </div>
         {msg.role === 'assistant' && (
           <div className="flex items-center gap-2 mt-1 ml-2">
-            <button onClick={() => onCopy(msg.content, msg.id)} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-md hover:bg-slate">
-              {isCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+            <button 
+              onClick={() => onCopy(msg.content, msg.id)} 
+              className="neu-btn text-text-dim hover:text-neu-teal p-1.5 rounded-neu-sm focus-neu transition-all"
+              aria-label="Copy message to clipboard"
+            >
+              {isCopied ? <Check size={14} className="text-emerald-700" /> : <Copy size={14} />}
             </button>
             {isLast && (
-              <button onClick={onRegenerate} disabled={isRegeneratingDisabled} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-md hover:bg-slate disabled:opacity-50">
+              <button 
+                onClick={onRegenerate} 
+                disabled={isRegeneratingDisabled} 
+                className="neu-btn text-text-dim hover:text-neu-teal p-1.5 rounded-neu-sm focus-neu disabled:opacity-40 transition-all"
+                aria-label="Regenerate response"
+              >
                 <RefreshCw size={14} />
               </button>
             )}
@@ -189,7 +198,7 @@ export default function ChatInterface({ user, isPro }) {
   const [currentSessionId, setCurrentSessionId] = useState(() => {
     return sessionStorage.getItem('serenova_active_session_id') || uuidv4();
   });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth > 1150);
 
   const scrollRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -654,62 +663,64 @@ export default function ChatInterface({ user, isPro }) {
   const stableOnRegenerate = useCallback(() => actionsRef.current.handleRegenerate(), []);
 
   return (
-    <div className="flex h-full relative overflow-hidden w-full">
+    <div className="flex h-full relative overflow-hidden w-full bg-neu-base min-h-0">
       {/* Sidebar for History */}
-      <div className={`w-64 bg-slate border-r border-glass-border flex flex-col transition-all ${sidebarOpen ? 'ml-0' : '-ml-64'}`}>
-        <div className="p-4 border-b border-glass-border">
-          <button id="new-chat-button" onClick={handleNewChat} className="w-full py-2 px-4 bg-neon-cyan text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#2f4a48] transition-colors">
+      <div className={`w-64 bg-neu-base border-r border-[#ded7c8] flex flex-col transition-all shadow-[4px_0_14px_rgba(185,177,163,0.22)] min-h-0 ${sidebarOpen ? 'ml-0' : '-ml-64'}`}>
+        <div className="p-4 border-b border-[#ded7c8] shrink-0">
+          <button id="new-chat-button" onClick={handleNewChat} className="w-full py-2.5 px-4 neu-btn-teal text-white rounded-neu-sm text-sm font-bold flex items-center justify-center gap-2 focus-neu">
             <Plus size={16} /> New Chat
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5 min-h-0">
           {sessions.map(s => (
             <button
               key={s.id}
               onClick={() => handleSelectSession(s.id)}
-              className={`w-full text-left p-3 rounded-lg text-sm truncate transition-colors mb-1 ${currentSessionId === s.id ? 'bg-white border border-glass-border text-text-primary shadow-sm' : 'text-text-muted hover:bg-black/5'}`}
+              className={`w-full text-left p-3 rounded-neu-sm text-sm truncate transition-all focus-neu ${currentSessionId === s.id ? 'neu-nav-active' : 'neu-nav-idle'}`}
             >
-              <MessageSquare size={14} className="inline mr-2 opacity-50" />
+              <MessageSquare size={14} className="inline mr-2 opacity-60" />
               {s.preview || 'New Conversation'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col h-full relative">
-        <header className="h-20 px-10 border-b border-glass-border flex items-center bg-white shrink-0">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="mr-4 text-text-muted hover:text-text-primary p-2">
-            <MessageSquare size={20} />
+      <div className="flex-1 flex flex-col h-full relative bg-neu-base min-h-0">
+        <header className="h-20 px-8 border-b border-[#ded7c8] flex items-center bg-neu-base shrink-0 shadow-[0_3px_10px_rgba(185,177,163,0.18)] z-10">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="mr-4 text-text-muted hover:text-neu-teal neu-btn p-2.5 rounded-neu-sm focus-neu transition-all" aria-label="Toggle chat history drawer">
+            <MessageSquare size={18} />
           </button>
           <div>
             <h1 className="text-2xl font-bold font-serif text-text-primary tracking-tight">{uiText.title}</h1>
-            <p className="text-[13px] text-text-muted">{uiText.subtitle}</p>
+            <p className="text-[12px] text-text-muted">{uiText.subtitle}</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-lg border border-glass-border bg-slate px-3 py-2">
-              <Languages size={16} className="text-text-muted" />
+          <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-neu-sm neu-card-flat px-3.5 py-1.5 border border-white/60">
+              <Languages size={15} className="text-neu-teal" />
               <select
                 value={preferredLanguage}
                 onChange={(e) => handleLanguageChange(e.target.value)}
-                className="bg-transparent text-xs font-bold text-text-primary outline-none"
+                className="bg-transparent text-xs font-bold text-text-primary outline-none cursor-pointer focus-neu"
                 aria-label="Preferred language"
               >
                 {languageOptions.map((option) => (
-                  <option key={option.code} value={option.code}>{option.label}</option>
+                  <option key={option.code} value={option.code} className="bg-neu-base text-text-primary">{option.label}</option>
                 ))}
               </select>
             </div>
-            <span className="hidden lg:inline-flex rounded-full border border-neon-green/20 bg-neon-green/10 px-3 py-1 text-xs font-bold text-neon-green">
+            <span className="hidden lg:inline-flex rounded-neu-full neu-inset px-3.5 py-1 text-xs font-bold text-emerald-800 border border-emerald-900/10">
               {uiText.memory}
             </span>
-            {isPro && <span className="bg-neon-amber/10 text-neon-amber px-3 py-1 rounded-full text-xs font-bold border border-neon-amber/20">PRO ACTIVE</span>}
+            {isPro && <span className="neu-card-flat text-amber-800 px-3.5 py-1 rounded-neu-full text-xs font-bold border border-amber-800/20">PRO ACTIVE</span>}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-10 flex flex-col gap-6">
+        <div className="flex-1 overflow-y-auto p-8 lg:p-10 flex flex-col gap-6 bg-neu-base min-h-0">
           {messages.length === 0 && !streamingContent && (
-            <div className="text-center text-text-muted opacity-70 mt-20">
-              <p>{uiText.empty}</p>
+            <div className="text-center text-text-muted mt-20 neu-card-flat max-w-md mx-auto p-8 rounded-neu-lg border border-white/60">
+              <MessageSquare className="mx-auto text-neu-teal opacity-40 mb-3" size={36} />
+              <p className="text-base font-semibold text-text-dim">{uiText.empty}</p>
+              <p className="text-xs text-text-muted mt-1">Ask questions, request study plans, or seek wellness guidance.</p>
             </div>
           )}
           {messages.map((msg) => {
@@ -728,14 +739,14 @@ export default function ChatInterface({ user, isPro }) {
             );
           })}
           {loading && (
-            <div className="flex gap-4 max-w-[80%] animate-[slideIn_0.3s_ease-out]">
-              <div className="w-9 h-9 rounded-full bg-slate border border-glass-border flex items-center justify-center font-bold text-sm text-text-dim font-serif shrink-0">D</div>
-              <div className="p-4 bg-white border border-glass-border rounded-2xl rounded-tl-sm text-text-primary text-[15px] leading-relaxed shadow-sm flex flex-col gap-2 min-w-[60px] w-full overflow-hidden">
+            <div className="flex gap-4 max-w-[85%] animate-[slideIn_0.3s_ease-out]">
+              <div className="w-9 h-9 rounded-full bg-neu-base text-neu-teal border border-white/80 shadow-neu-raised-sm flex items-center justify-center font-bold text-sm font-serif shrink-0">D</div>
+              <div className="p-5 bg-neu-base neu-card rounded-neu-lg rounded-tl-sm text-text-primary text-[15px] leading-relaxed shadow-neu-raised flex flex-col gap-2 min-w-[60px] w-full overflow-hidden border border-white/80">
                 {streamingContent ? <MarkdownMessage content={streamingContent} /> : (
-                  <div className="flex items-center gap-2 h-6">
-                    <div className="w-2 h-2 bg-text-muted rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-text-muted rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="flex items-center gap-2.5 h-6">
+                    <div className="w-2.5 h-2.5 bg-neu-teal/60 rounded-full animate-bounce"></div>
+                    <div className="w-2.5 h-2.5 bg-neu-teal/60 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+                    <div className="w-2.5 h-2.5 bg-neu-teal/60 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
                   </div>
                 )}
               </div>
@@ -744,25 +755,27 @@ export default function ChatInterface({ user, isPro }) {
           <div ref={scrollRef}></div>
         </div>
 
-        <div className="p-8 pb-10 bg-void shrink-0">
-          <form onSubmit={handleSend} className="glass-card p-2 shadow-sm flex items-center gap-3">
-            <button type="button" className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-neon-cyan transition-colors rounded-xl hover:bg-slate"><Paperclip size={18} /></button>
-            <button type="button" className="w-10 h-10 flex items-center justify-center text-text-muted hover:text-neon-cyan transition-colors rounded-xl hover:bg-slate"><Camera size={18} /></button>
+        <div className="p-6 pb-8 bg-neu-base shrink-0 border-t border-[#ded7c8]/50">
+          <form onSubmit={handleSend} className="neu-card-elevated p-2 sm:p-2.5 px-3 sm:px-4 flex items-center gap-2 sm:gap-3 bg-neu-base border border-white/80 w-full max-w-4xl mx-auto">
+            <button type="button" className="hidden sm:flex w-10 h-10 items-center justify-center text-text-dim hover:text-neu-teal transition-all neu-btn rounded-neu-sm focus-neu" aria-label="Attach file" title="Attach file"><Paperclip size={18} /></button>
+            <button type="button" className="hidden sm:flex w-10 h-10 items-center justify-center text-text-dim hover:text-neu-teal transition-all neu-btn rounded-neu-sm focus-neu" aria-label="Camera" title="Camera"><Camera size={18} /></button>
 
-            <input
-              id="chat-message-input"
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={loading}
-              placeholder={isListening ? uiText.listening : uiText.placeholder}
-              className="flex-1 bg-transparent border-none outline-none text-text-primary text-base font-main px-2 disabled:opacity-50"
-            />
+            <div className="flex-1 min-w-0 neu-inset flex items-center px-4 py-2 bg-neu-dark border border-[#ded7c8]/40">
+              <input
+                id="chat-message-input"
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={loading}
+                placeholder={isListening ? uiText.listening : uiText.placeholder}
+                className="w-full min-w-0 bg-transparent border-none outline-none text-text-primary text-base font-main placeholder:text-text-muted/70 disabled:opacity-50 focus-neu"
+              />
+            </div>
 
             <button
               type="button"
               onClick={() => setVoiceOutputEnabled((enabled) => !enabled)}
-              className={`w-10 h-10 flex items-center justify-center transition-colors rounded-xl hover:bg-slate ${voiceOutputEnabled ? 'text-neon-cyan bg-slate' : 'text-text-muted hover:text-neon-cyan'}`}
+              className={`w-10 h-10 flex items-center justify-center transition-all neu-btn rounded-neu-sm focus-neu ${voiceOutputEnabled ? 'neu-nav-active text-neu-teal' : 'text-text-dim hover:text-neu-teal'}`}
               aria-label="Toggle voice output"
               title="Toggle voice output"
             >
@@ -772,18 +785,18 @@ export default function ChatInterface({ user, isPro }) {
               type="button"
               onClick={isListening ? stopVoiceInput : startVoiceInput}
               disabled={loading}
-              className={`w-10 h-10 flex items-center justify-center transition-colors rounded-xl hover:bg-slate disabled:opacity-50 ${isListening ? 'bg-red-500/10 text-red-500' : 'text-text-muted hover:text-neon-cyan'}`}
+              className={`w-10 h-10 flex items-center justify-center transition-all neu-btn rounded-neu-sm focus-neu disabled:opacity-40 ${isListening ? 'neu-inset text-red-600 bg-red-100' : 'text-text-dim hover:text-neu-teal'}`}
               aria-label="Voice input"
               title={speechSupported ? 'Voice input' : 'Voice input is not supported in this browser'}
             >
               <Mic size={18} />
             </button>
             {loading ? (
-              <button id="chat-stop-button" type="button" onClick={handleStopGeneration} className="w-10 h-10 flex items-center justify-center bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-all shadow-sm">
+              <button id="chat-stop-button" type="button" onClick={handleStopGeneration} className="w-11 h-11 flex items-center justify-center neu-btn text-red-600 bg-red-50 rounded-neu-sm focus-neu">
                 <Square size={16} fill="currentColor" />
               </button>
             ) : (
-              <button id="chat-send-button" type="submit" disabled={!input.trim()} className="w-10 h-10 flex items-center justify-center bg-neon-cyan text-white rounded-xl hover:bg-[#2f4a48] transition-all disabled:opacity-50 hover:-translate-y-px shadow-sm">
+              <button id="chat-send-button" type="submit" disabled={!input.trim()} className="w-11 h-11 flex items-center justify-center neu-btn-teal text-white rounded-neu-sm focus-neu disabled:opacity-40">
                 <Send size={18} />
               </button>
             )}

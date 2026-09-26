@@ -2,24 +2,195 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --neu-base: #eeebe2;
+  --neu-light: #f7f4ec;
+  --neu-dark: #e3dfd3;
+  --neu-shadow: rgba(182, 174, 159, 0.48);
+  --neu-highlight: rgba(255, 255, 255, 0.95);
+  --neu-teal: #244d50;
+  --neu-teal-dark: #19383a;
+  --neu-teal-light: #326468;
+  --text-primary: #191f1e;
+  --text-secondary: #454d4b;
+  --text-muted: #727a76;
+}
+
+.dark {
+  --neu-base: #1f2324;
+  --neu-light: #282d2f;
+  --neu-dark: #16191a;
+  --neu-shadow: rgba(0, 0, 0, 0.65);
+  --neu-highlight: rgba(255, 255, 255, 0.05);
+  --neu-teal: #3b7b80;
+  --neu-teal-dark: #204b4e;
+  --neu-teal-light: #4ea0a6;
+  --text-primary: #f2f0eb;
+  --text-secondary: #c2c0b8;
+  --text-muted: #8c8a82;
+}
+
 @layer base {
   body {
-    @apply bg-void text-text-primary font-main h-screen overflow-hidden;
+    background-color: var(--neu-base);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    height: 100vh;
+    overflow: hidden;
   }
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-white border border-glass-border rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.04)];
+  /* Neumorphic Surfaces */
+  .neu-surface {
+    background-color: var(--neu-base);
   }
-  
-  .primary-glow {
-    @apply bg-neon-cyan text-white shadow-sm transition-all hover:bg-[#2f4a48] hover:-translate-y-px;
+
+  .neu-card {
+    background-color: var(--neu-base);
+    box-shadow: 6px 6px 14px var(--neu-shadow), -6px -6px 14px var(--neu-highlight);
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+  }
+
+  .neu-card-flat {
+    background-color: var(--neu-base);
+    box-shadow: 3px 3px 8px var(--neu-shadow), -3px -3px 8px var(--neu-highlight);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .neu-card-elevated {
+    background-color: var(--neu-base);
+    box-shadow: 9px 9px 20px var(--neu-shadow), -9px -9px 20px var(--neu-highlight);
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  /* Inset Wells (Fields & Active States) */
+  .neu-inset {
+    background-color: var(--neu-dark);
+    box-shadow: inset 3px 3px 6px var(--neu-shadow), inset -3px -3px 6px var(--neu-highlight);
+    border-radius: 14px;
+  }
+
+  .neu-inset-deep {
+    background-color: var(--neu-dark);
+    box-shadow: inset 5px 5px 10px var(--neu-shadow), inset -5px -5px 10px var(--neu-highlight);
+    border-radius: 16px;
+  }
+
+  /* Interactive Buttons */
+  .neu-btn {
+    background-color: var(--neu-base);
+    box-shadow: 4px 4px 10px var(--neu-shadow), -4px -4px 10px var(--neu-highlight);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neu-btn:hover:not(:disabled) {
+    box-shadow: 6px 6px 14px var(--neu-shadow), -6px -6px 14px var(--neu-highlight);
+    transform: translateY(-1px);
+    color: var(--neu-teal);
+  }
+
+  .neu-btn:active:not(:disabled) {
+    box-shadow: inset 3px 3px 6px var(--neu-shadow), inset -3px -3px 6px var(--neu-highlight);
+    transform: translateY(0);
+    background-color: var(--neu-dark);
+  }
+
+  .neu-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: 2px 2px 5px var(--neu-shadow), -2px -2px 5px var(--neu-highlight);
+  }
+
+  /* Primary Accent Button (Teal) */
+  .neu-btn-teal {
+    background: linear-gradient(145deg, var(--neu-teal-light), var(--neu-teal-dark));
+    box-shadow: 5px 5px 12px var(--neu-shadow), -5px -5px 12px var(--neu-highlight);
+    color: #ffffff;
+    border-radius: 14px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .neu-btn-teal:hover:not(:disabled) {
+    box-shadow: 7px 7px 16px var(--neu-shadow), -7px -7px 16px var(--neu-highlight), 0 4px 12px rgba(36, 77, 80, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .neu-btn-teal:active:not(:disabled) {
+    background: linear-gradient(145deg, var(--neu-teal-dark), var(--neu-teal-light));
+    box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.4), inset -3px -3px 6px rgba(255, 255, 255, 0.15);
+    transform: translateY(0);
+  }
+
+  .neu-btn-teal:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: 2px 2px 6px var(--neu-shadow);
+  }
+
+  /* Accessible Focus Ring */
+  .focus-neu {
+    outline: none;
+  }
+
+  .focus-neu:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--neu-base), 0 0 0 4px var(--neu-teal) !important;
+  }
+
+  /* Neumorphic Navigation Item */
+  .neu-nav-active {
+    background-color: var(--neu-dark);
+    box-shadow: inset 3px 3px 6px var(--neu-shadow), inset -3px -3px 6px var(--neu-highlight);
+    color: var(--neu-teal);
+    font-weight: 700;
+  }
+
+  .neu-nav-idle {
+    background-color: transparent;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .neu-nav-idle:hover {
+    background-color: var(--neu-base);
+    box-shadow: 3px 3px 8px var(--neu-shadow), -3px -3px 8px var(--neu-highlight);
+    color: var(--neu-teal);
+  }
+
+  /* Floating pill tray */
+  .neu-pill-tray {
+    background-color: var(--neu-base);
+    box-shadow: 8px 8px 18px var(--neu-shadow), -8px -8px 18px var(--neu-highlight);
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
   }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e6e2d6; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #858076; }
+/* Custom Neumorphic Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--neu-dark);
+  box-shadow: inset 1px 1px 3px var(--neu-shadow);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c7c1b4;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  border: 2px solid var(--neu-dark);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neu-teal);
+}

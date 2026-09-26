@@ -189,12 +189,12 @@ export default function Subscription({ user, setIsPro }) {
 
   if (isActive) {
     return (
-      <div className="flex-1 bg-[#f7f4ec] p-10 flex flex-col items-center justify-center">
-        <div className="rounded-lg border border-[#ded5c4] bg-white p-10 text-center max-w-md shadow-sm">
-          <CheckCircle2 className="mx-auto mb-4 text-neon-green" size={44} />
+      <div className="flex-1 bg-neu-base p-10 flex flex-col items-center justify-center">
+        <div className="rounded-neu-xl neu-card p-10 text-center max-w-md border border-white/80">
+          <CheckCircle2 className="mx-auto mb-4 text-emerald-700" size={48} />
           <h2 className="text-2xl font-serif font-bold text-text-primary mb-2">Premium Active</h2>
           <p className="text-text-muted mb-6 text-sm">Face analysis, daily cards, reports, and unlimited chat are unlocked.</p>
-          <div className="p-4 bg-neon-green/10 text-neon-green border border-neon-green/20 rounded-lg text-sm font-bold">
+          <div className="p-4 neu-inset text-emerald-800 rounded-neu-md text-sm font-bold bg-emerald-50/60 border border-emerald-900/10">
             Valid until {new Date(expiresAt).toLocaleDateString()}
           </div>
         </div>
@@ -203,37 +203,41 @@ export default function Subscription({ user, setIsPro }) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f7f4ec] p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-neu-base p-6 lg:p-8">
       <div className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-lg border border-[#ded5c4] bg-white p-6 shadow-sm">
+        <section className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-[#846a4e]">Plans for a worldwide audience</p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-[#24211e]">Choose how SERENOVA grows with you.</h1>
-              <p className="mt-2 text-sm leading-6 text-[#66615a]">
+              <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Plans for a worldwide audience</p>
+              <h1 className="mt-1 text-3xl font-bold font-serif tracking-tight text-text-primary">Choose how SERENOVA grows with you.</h1>
+              <p className="mt-2 text-sm leading-relaxed text-text-dim">
                 Built for students, parents, professionals, elders, and teams. Ask anything, track wellness, and upgrade when you need richer care.
               </p>
             </div>
-            <ShieldCheck className="shrink-0 text-[#2f5d62]" size={38} />
+            <ShieldCheck className="shrink-0 text-neu-teal" size={38} />
           </div>
 
-          <div className="grid gap-3">
+          <div className="grid gap-3.5">
             {tiers.map(({ icon: Icon, ...item }) => (
               <button
                 key={item.name}
                 onClick={() => setSelectedTier(item.name)}
-                className={`rounded-lg border p-4 text-left transition ${selectedTier === item.name ? 'border-[#2f5d62] bg-[#e8f3ef]' : 'border-[#e8dfd0] bg-[#fbfaf6] hover:border-[#2f5d62]'}`}
+                className={`rounded-neu-md p-4 text-left transition-all focus-neu ${
+                  selectedTier === item.name 
+                    ? 'neu-inset bg-neu-dark border border-neu-teal/50' 
+                    : 'neu-btn border border-white/60 hover:text-neu-teal'
+                }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#2f5d62]">
-                    <Icon size={19} />
+                <div className="flex items-start gap-3.5">
+                  <div className={`flex h-11 w-11 items-center justify-center rounded-neu-sm ${selectedTier === item.name ? 'neu-card-flat text-neu-teal bg-white' : 'neu-card-flat text-neu-teal bg-neu-base'}`}>
+                    <Icon size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-3">
-                      <p className="font-bold text-[#24211e]">{item.name}</p>
-                      <p className="font-bold text-[#2f5d62]">{item.amount}<span className="text-xs font-normal text-[#66615a]">{item.suffix}</span></p>
+                      <p className="font-bold text-text-primary text-base">{item.name}</p>
+                      <p className="font-bold text-neu-teal text-base">{item.amount}<span className="text-xs font-normal text-text-muted">{item.suffix}</span></p>
                     </div>
-                    <p className="mt-1 text-sm leading-5 text-[#66615a]">{item.body}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-text-dim">{item.body}</p>
                   </div>
                 </div>
               </button>
@@ -242,45 +246,45 @@ export default function Subscription({ user, setIsPro }) {
 
           <div className="mt-6 grid gap-3">
             {premiumFeatures.map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-3 rounded-lg border border-[#e8dfd0] bg-[#fbfaf6] px-4 py-3">
-                <Icon size={18} className="text-[#2f5d62] shrink-0" />
-                <span className="text-sm text-[#24211e]">{label}</span>
+              <div key={label} className="flex items-center gap-3.5 rounded-neu-md neu-card-flat px-4 py-3 border border-white/60 bg-neu-base">
+                <Icon size={18} className="text-neu-teal shrink-0" />
+                <span className="text-sm font-medium text-text-primary">{label}</span>
               </div>
             ))}
           </div>
         </section>
 
         <section className="grid gap-6">
-          <div className="rounded-lg border border-[#ded5c4] bg-white p-6 shadow-sm">
+          <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#846a4e]">Google Pay / UPI</p>
-                <h2 className="mt-1 text-2xl font-bold text-[#24211e]">Pay to {UPI_ID}</h2>
-                <p className="mt-2 text-sm leading-6 text-[#66615a]">
+                <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Google Pay / UPI</p>
+                <h2 className="mt-1 text-2xl font-bold font-serif text-text-primary">Pay to {UPI_ID}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-text-dim">
                   Scan this QR in Google Pay, PhonePe, Paytm, or any UPI app. After payment, submit the transaction ID for admin verification.
                 </p>
               </div>
-              <Smartphone className="shrink-0 text-[#2f5d62]" size={34} />
+              <Smartphone className="shrink-0 text-neu-teal" size={34} />
             </div>
 
             <div className="mt-5 grid gap-5 md:grid-cols-[220px_1fr] md:items-center">
-              <div className="rounded-lg border border-[#e8dfd0] bg-white p-4">
+              <div className="rounded-neu-md neu-card-flat p-4 bg-white flex items-center justify-center border border-white/80 shadow-neu-raised-sm">
                 <QRCode value={upiUrl} size={188} />
               </div>
               <div>
-                <div className="rounded-lg bg-[#fbfaf6] p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#847d72]">Selected plan</p>
-                  <p className="mt-1 text-3xl font-bold text-[#24211e]">{tier.amount}<span className="text-sm font-normal text-[#66615a]">{tier.suffix}</span></p>
-                  <p className="mt-1 text-sm text-[#66615a]">{tier.name} plan via UPI</p>
+                <div className="rounded-neu-md neu-card-flat p-4 border border-white/60 bg-neu-base">
+                  <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Selected plan</p>
+                  <p className="mt-1 text-3xl font-bold text-text-primary tracking-tight">{tier.amount}<span className="text-sm font-normal text-text-muted">{tier.suffix}</span></p>
+                  <p className="mt-1 text-sm font-semibold text-neu-teal">{tier.name} plan via UPI</p>
                 </div>
-                <a href={upiUrl} className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-[#2f5d62] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#23494d]">
+                <a href={upiUrl} className="mt-4 inline-flex w-full items-center justify-center rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu">
                   Open Google Pay / UPI app
                 </a>
               </div>
             </div>
 
-            <form onSubmit={submitUpiPayment} className="mt-5 grid gap-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#847d72]" htmlFor="upi-transaction">
+            <form onSubmit={submitUpiPayment} className="mt-6 grid gap-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-text-muted" htmlFor="upi-transaction">
                 UPI transaction ID
               </label>
               <input
@@ -288,36 +292,38 @@ export default function Subscription({ user, setIsPro }) {
                 value={transactionId}
                 onChange={(event) => setTransactionId(event.target.value)}
                 placeholder="Enter Google Pay transaction/reference ID"
-                className="rounded-lg border border-[#ded5c4] bg-[#fbfaf6] px-4 py-3 text-sm outline-none focus:border-[#2f5d62]"
+                className="rounded-neu-sm neu-inset bg-neu-dark px-4 py-3 text-sm text-text-primary placeholder:text-text-muted outline-none border border-[#ded7c8]/50 focus-neu"
               />
-              <button disabled={loading || !transactionId.trim()} className="rounded-lg border border-[#2f5d62] px-4 py-3 text-sm font-bold text-[#2f5d62] transition hover:bg-[#e8f3ef] disabled:opacity-50">
+              <button disabled={loading || !transactionId.trim()} className="rounded-neu-sm neu-btn px-4 py-3 text-sm font-bold text-neu-teal transition-all focus-neu disabled:opacity-40">
                 {loading ? 'Submitting...' : 'Submit UPI payment for verification'}
               </button>
             </form>
 
             {upiSubmitted && (
-              <div className="mt-4 rounded-lg border border-[#b58c42]/30 bg-[#fbf1dc] p-3 text-sm font-bold text-[#8a682e]">
+              <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm font-bold text-amber-900 bg-amber-50/70 border border-amber-800/20">
                 Payment submitted. Premium unlocks after admin verification.
               </div>
             )}
           </div>
 
-          <div className="rounded-lg border border-[#ded5c4] bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-3">
-              <CreditCard className="text-[#2f5d62]" />
+          <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-neu-sm neu-card-flat flex items-center justify-center text-neu-teal shadow-neu-raised-sm">
+                <CreditCard size={20} />
+              </div>
               <div>
-                <h2 className="text-xl font-bold text-[#24211e]">Secure card/netbanking checkout</h2>
-                <p className="text-sm text-[#66615a]">Razorpay remains available for automated Premium activation.</p>
+                <h2 className="text-xl font-bold font-serif text-text-primary">Secure card/netbanking checkout</h2>
+                <p className="text-sm text-text-dim">Razorpay remains available for automated Premium activation.</p>
               </div>
             </div>
 
             {error && (
-              <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600">
+              <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm text-red-800 bg-red-50 border border-red-200">
                 {error}
               </div>
             )}
 
-            <button onClick={handleRazorpayUpgrade} disabled={loading || selectedTier !== 'Premium'} className="mt-5 w-full rounded-lg bg-[#1f2933] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#111827] disabled:opacity-50">
+            <button onClick={handleRazorpayUpgrade} disabled={loading || selectedTier !== 'Premium'} className="mt-5 w-full rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu disabled:opacity-40">
               {selectedTier === 'Premium' ? (loading ? 'Opening secure checkout...' : 'Pay Premium with Razorpay') : 'Razorpay auto-checkout currently supports Premium'}
             </button>
           </div>

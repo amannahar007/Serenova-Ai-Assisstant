@@ -139,60 +139,103 @@ export default function EmotionFusion({ isPro = false }) {
 
   if (!consented) {
     return (
-      <div className="flex-1 overflow-y-auto bg-[#f7f4ec] p-6 lg:p-10">
-        <section className="mx-auto max-w-2xl rounded-2xl border border-[#ded5c4] bg-white p-7 shadow-sm">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#e8f3ef] text-[#2f5d62]"><Camera size={25} /></div>
-          <h1 className="mt-5 text-3xl font-bold text-[#24211e]">Optional expression check-in</h1>
-          <p className="mt-3 leading-6 text-[#66615a]">With your consent, your camera is analysed in this browser to classify one of seven basic facial expressions: happy, sad, angry, surprised, fearful, disgusted, or neutral. Video and inference results are not uploaded or stored.</p>
-          <div className="mt-5 rounded-xl bg-[#fbf1dc] p-4 text-sm text-[#664d20]">
-            <p className="font-bold">Important limits</p>
-            <p className="mt-1">This is not a mood reader, lie detector, health tool, or diagnosis. It cannot detect anxiety, depression, stress, fatigue, or heart rate. Expression classifiers are affected by lighting, pose, culture, and individual differences; expect roughly 65-75% accuracy on standard webcam video, not a clinical diagnostic score.</p>
+      <div className="flex-1 overflow-y-auto bg-neu-base p-6 lg:p-10">
+        <section className="mx-auto max-w-2xl rounded-neu-xl neu-card p-8 border border-white/80">
+          <div className="flex h-14 w-14 items-center justify-center rounded-neu-md neu-card-flat text-neu-teal shadow-neu-raised-sm">
+            <Camera size={26} />
           </div>
-          <button onClick={() => setConsented(true)} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#2f5d62] px-5 py-3 font-bold text-white hover:bg-[#23494d]"><ShieldCheck size={18} /> Start private check-in</button>
-          {isPro && <p className="mt-4 text-xs text-[#66615a]">Premium can add future opt-in wellness journaling, but recognition itself is not gated by billing.</p>}
+          <h1 className="mt-5 text-3xl font-bold font-serif text-text-primary">Optional expression check-in</h1>
+          <p className="mt-3 leading-relaxed text-text-dim">
+            With your consent, your camera is analysed in this browser to classify one of seven basic facial expressions: happy, sad, angry, surprised, fearful, disgusted, or neutral. Video and inference results are not uploaded or stored.
+          </p>
+          <div className="mt-5 rounded-neu-md neu-inset p-4 text-sm text-amber-950 bg-[#faeccd]/60 border border-amber-900/15">
+            <p className="font-bold">Important limits</p>
+            <p className="mt-1 leading-relaxed">
+              This is not a mood reader, lie detector, health tool, or diagnosis. It cannot detect anxiety, depression, stress, fatigue, or heart rate. Expression classifiers are affected by lighting, pose, culture, and individual differences; expect roughly 65-75% accuracy on standard webcam video, not a clinical diagnostic score.
+            </p>
+          </div>
+          <button 
+            onClick={() => setConsented(true)} 
+            className="mt-6 inline-flex items-center gap-2.5 rounded-neu-md neu-btn-teal px-6 py-3.5 font-bold text-white focus-neu transition-all"
+          >
+            <ShieldCheck size={18} /> Start private check-in
+          </button>
+          {isPro && <p className="mt-4 text-xs text-text-muted">Premium can add future opt-in wellness journaling, but recognition itself is not gated by billing.</p>}
         </section>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f7f4ec] p-6 lg:p-10">
+    <div className="flex-1 overflow-y-auto bg-neu-base p-6 lg:p-10">
       <section className="mx-auto max-w-4xl">
         <header className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#846a4e]">Local-only camera check-in</p>
-          <h1 className="mt-1 text-3xl font-bold text-[#24211e]">Basic expression recognition</h1>
-          <p className="mt-2 text-sm text-[#66615a]">A lightweight model classifies facial expression only. It does not know how you feel.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Local-only camera check-in</p>
+          <h1 className="mt-1 text-3xl font-bold font-serif text-text-primary">Basic expression recognition</h1>
+          <p className="mt-1 text-sm text-text-dim">A lightweight model classifies facial expression only. It does not know how you feel.</p>
         </header>
         <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-          <div className="overflow-hidden rounded-2xl border border-[#ded5c4] bg-black shadow-sm">
-            <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
-            {cameraState !== 'active' && <div className="flex aspect-video items-center justify-center bg-[#24211e] text-white"><LoaderCircle className="mr-2 animate-spin" size={18} /> {modelsState === 'loading' ? 'Loading local model...' : 'Starting camera...'}</div>}
+          <div className="overflow-hidden rounded-neu-xl neu-card p-2.5 bg-neu-base border border-white/80">
+            <div className="overflow-hidden rounded-neu-lg bg-black relative">
+              <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
+              {cameraState !== 'active' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#1c2224] text-white">
+                  <LoaderCircle className="mr-2 animate-spin text-neu-teal" size={20} /> 
+                  <span>{modelsState === 'loading' ? 'Loading local model...' : 'Starting camera...'}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <aside className="rounded-2xl border border-[#ded5c4] bg-white p-6 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#846a4e]">Current classification</p>
-            <p className="mt-3 text-3xl font-bold capitalize text-[#24211e]">{expression.label}</p>
-            <p className="mt-1 text-sm text-[#66615a]">Model confidence: {expression.confidence}%</p>
-            <p className="mt-5 rounded-xl bg-[#fbfaf6] p-3 text-xs leading-5 text-[#66615a]">Confidence is the model's ranking for this frame, not proof that the expression is correct and not a measure of wellbeing.</p>
-            <button onClick={stopCamera} disabled={cameraState !== 'active'} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#ded5c4] px-3 py-2 text-sm font-semibold text-[#514d47] disabled:opacity-50"><Square size={15} /> Stop camera</button>
-            <button onClick={restart} className="ml-2 mt-5 inline-flex items-center gap-2 rounded-lg border border-[#2f5d62] px-3 py-2 text-sm font-semibold text-[#2f5d62]"><Video size={15} /> Restart</button>
+          <aside className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80 flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Current classification</p>
+              <div className="mt-3 rounded-neu-md neu-inset p-4 bg-neu-dark border border-[#ded7c8]/40">
+                <p className="text-3xl font-bold capitalize text-text-primary tracking-tight">{expression.label}</p>
+                <p className="mt-1 text-sm font-semibold text-neu-teal">Model confidence: {expression.confidence}%</p>
+              </div>
+              <p className="mt-4 rounded-neu-md neu-card-flat p-3 text-xs leading-5 text-text-dim border border-white/60">
+                Confidence is the model's ranking for this frame, not proof that the expression is correct and not a measure of wellbeing.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-2.5">
+              <button 
+                onClick={stopCamera} 
+                disabled={cameraState !== 'active'} 
+                className="inline-flex items-center gap-2 rounded-neu-sm neu-btn px-4 py-2.5 text-sm font-bold text-text-dim disabled:opacity-40 focus-neu transition-all"
+              >
+                <Square size={14} /> Stop camera
+              </button>
+              <button 
+                onClick={restart} 
+                className="inline-flex items-center gap-2 rounded-neu-sm neu-btn-teal px-4 py-2.5 text-sm font-bold text-white focus-neu transition-all"
+              >
+                <Video size={14} /> Restart
+              </button>
+            </div>
           </aside>
         </div>
-        {error && <div className="mt-5 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+        {error && <div className="mt-5 rounded-neu-md neu-inset p-4 text-sm text-red-800 bg-red-50 border border-red-200">{error}</div>}
         {showCheckIn && !supportRequested && (
-          <section className="mt-6 rounded-2xl border border-[#b58c42]/40 bg-[#fbf1dc] p-5">
-            <p className="font-bold text-[#51401d]">A quick human check-in</p>
-            <p className="mt-1 text-sm text-[#664d20]">You've been using this tool for a little while. How are you doing? Only you can answer that.</p>
+          <section className="mt-6 rounded-neu-xl neu-card p-6 border border-amber-900/15 bg-[#faeccd]/40">
+            <p className="font-bold text-amber-950">A quick human check-in</p>
+            <p className="mt-1 text-sm text-amber-900">You've been using this tool for a little while. How are you doing? Only you can answer that.</p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <button onClick={() => setShowCheckIn(false)} className="rounded-lg border border-[#9d7a39] px-3 py-2 text-sm font-semibold text-[#664d20]">I'm okay</button>
-              <button onClick={() => setSupportRequested(true)} className="rounded-lg bg-[#664d20] px-3 py-2 text-sm font-semibold text-white">I'd like support</button>
+              <button onClick={() => setShowCheckIn(false)} className="rounded-neu-sm neu-btn px-4 py-2 text-sm font-bold text-amber-950 focus-neu">I'm okay</button>
+              <button onClick={() => setSupportRequested(true)} className="rounded-neu-sm neu-btn-teal px-4 py-2 text-sm font-bold text-white focus-neu">I'd like support</button>
             </div>
           </section>
         )}
         {supportRequested && (
-          <section className="mt-6 rounded-2xl border border-[#ded5c4] bg-white p-5">
-            <p className="font-bold text-[#24211e]">Tell us in your own words, if you want to.</p>
-            <textarea value={selfReport} onChange={(event) => setSelfReport(event.target.value)} maxLength={1000} placeholder="How are you feeling right now?" className="mt-3 min-h-24 w-full rounded-xl border border-[#ded5c4] bg-[#fbfaf6] p-3 text-sm outline-none focus:border-[#2f5d62]" />
-            <p className="mt-2 text-xs text-[#66615a]">This stays in this browser and is not a diagnosis. For ongoing support, contact a licensed professional or someone you trust.</p>
+          <section className="mt-6 rounded-neu-xl neu-card p-6 border border-white/80 bg-neu-base">
+            <p className="font-bold text-text-primary">Tell us in your own words, if you want to.</p>
+            <textarea 
+              value={selfReport} 
+              onChange={(event) => setSelfReport(event.target.value)} 
+              maxLength={1000} 
+              placeholder="How are you feeling right now?" 
+              className="mt-3 min-h-24 w-full rounded-neu-md neu-inset bg-neu-dark p-3.5 text-sm text-text-primary placeholder:text-text-muted outline-none focus-neu border border-[#ded7c8]/50" 
+            />
+            <p className="mt-2 text-xs text-text-muted">This stays in this browser and is not a diagnosis. For ongoing support, contact a licensed professional or someone you trust.</p>
             <CrisisResources selfReport={selfReport} />
           </section>
         )}
