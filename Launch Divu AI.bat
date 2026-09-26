@@ -25,11 +25,12 @@ if %errorlevel% neq 0 (
     start /min "SERENOVA Backend" "%NODE_EXE%" "%BACKEND_DIR%\server.js"
 )
 
-:: ── 3.5. Start Python FastAPI backend if not already running on port 8000 ──
-netstat -ano | find "LISTENING" | find ":8000" >nul 2>&1
-if %errorlevel% neq 0 (
-    set PYTHON_DIR=%~dp0backend
-    start /min "FastAPI Backend" cmd /c "cd /d "%PYTHON_DIR%" && call venv\Scripts\activate && uvicorn main:app --host 0.0.0.0 --port 8000"
+:: ── 3.5. Start Python FastAPI backend ──
+set PYTHON_DIR=%~dp0backend
+if exist "%PYTHON_DIR%\venv\Scripts\python.exe" (
+    start /min "FastAPI Backend" cmd /c "cd /d "%PYTHON_DIR%" && call venv\Scripts\activate && uvicorn main:app --host 127.0.0.1 --port 8000"
+) else (
+    start /min "FastAPI Backend" cmd /c "cd /d "%PYTHON_DIR%" && python -m uvicorn main:app --host 127.0.0.1 --port 8000"
 )
 
 :: â”€â”€ 4. Start React Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

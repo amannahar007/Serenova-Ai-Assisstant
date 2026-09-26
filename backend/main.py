@@ -23,9 +23,16 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from starlette.background import BackgroundTask
+import sys
+from pathlib import Path
 
-from ai_engine.chat import AssistantError, chat_stream_SERENOVA, chat_with_SERENOVA
+# Ensure backend directory is in sys.path regardless of execution CWD
+backend_root = Path(__file__).resolve().parent
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
+
+from ai_engine.chat import AssistantError, chat_stream_SERENOVA, chat_with_SERENOVA, get_welcome_greeting
+from ai_engine.session import session_manager
 from ai_engine.rag import process_document, retrieve_document_context
 from ai_engine.vision import analyze_facial_expression, analyze_gesture
 from ai_engine.voice import generate_speech, transcribe_audio
@@ -34,7 +41,7 @@ load_dotenv()
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
-MAX_INPUT_LENGTH = 4_000
+MAX_INPUT_LENGTH = 50_000
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 TEMP_UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", Path(__file__).resolve().parent / "temp_uploads"))
@@ -100,14 +107,14 @@ app.add_middleware(
 
 class ChatMessage(BaseModel):
     role: str = Field(pattern="^(user|assistant|model)$")
-    content: str = Field(min_length=1, max_length=6_000)
+    content: str = Field(min_length=1, max_length=100_000)
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_INPUT_LENGTH)
     session_id: str | None = Field(default=None, max_length=128)
     stream: bool = False
-    history: list[ChatMessage] = Field(default_factory=list, max_length=32)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=100)
     memory: dict[str, Any] = Field(default_factory=dict)
     preferred_language: str | None = Field(default=None, max_length=16)
 
@@ -115,6 +122,19 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     session_id: str
+    state: str = "active"
+
+
+class WelcomeRequest(BaseModel):
+    session_id: str | None = None
+    memory: dict[str, Any] = Field(default_factory=dict)
+    preferred_language: str | None = None
+
+
+class WelcomeResponse(BaseModel):
+    greeting: str
+    session_id: str
+    state: str = "active"
 
 
 def _history_payload(history: list[ChatMessage]) -> list[dict[str, str]]:
@@ -144,13 +164,35 @@ async def root() -> dict[str, str]:
 @app.get("/health")
 async def health() -> dict[str, Any]:
     from ai_engine import rag
+    from ai_engine.chat import MAX_OUTPUT_TOKENS
 
     return {
         "status": "ok",
+        "engine_version": "2.1.0-fixed-multiturn-8k",
+        "max_output_tokens": MAX_OUTPUT_TOKENS,
         "provider": os.getenv("LLM_PROVIDER", "gemini"),
         "provider_configured": bool(os.getenv("GEMINI_API_KEY")) if os.getenv("LLM_PROVIDER", "gemini") == "gemini" else True,
         "document_models_ready": rag.MODELS_READY,
     }
+
+
+@app.post("/welcome", response_model=WelcomeResponse)
+async def welcome_endpoint(req: WelcomeRequest = None):
+    req_dict = req.model_dump() if req else {}
+    result = get_welcome_greeting(
+        session_id=req_dict.get("session_id"),
+        memory=req_dict.get("memory"),
+        preferred_language=req_dict.get("preferred_language"),
+    )
+    return WelcomeResponse(**result)
+
+
+@app.post("/session/reset")
+async def reset_session_endpoint(session_id: str = Form(...)):
+    session = session_manager.get_session(session_id)
+    if session:
+        session.reset()
+    return {"status": "ok", "session_id": session_id}
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -160,12 +202,24 @@ async def chat_endpoint(request: Request, req: ChatRequest, _: dict[str, Any] = 
     history = _history_payload(req.history)
     if req.stream:
         return StreamingResponse(
-            chat_stream_SERENOVA(message, history, req.memory, req.preferred_language),
+            chat_stream_SERENOVA(
+                message=message,
+                history=history,
+                memory=req.memory,
+                preferred_language=req.preferred_language,
+                session_id=req.session_id,
+            ),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
         )
     try:
-        result = await chat_with_SERENOVA(message, req.session_id, history, req.memory, req.preferred_language)
+        result = await chat_with_SERENOVA(
+            message=message,
+            session_id=req.session_id,
+            history=history,
+            memory=req.memory,
+            preferred_language=req.preferred_language,
+        )
     except AssistantError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return ChatResponse(**result)

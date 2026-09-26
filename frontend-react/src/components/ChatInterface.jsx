@@ -186,7 +186,9 @@ export default function ChatInterface({ user, isPro }) {
 
   // Chat Session Management
   const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(() => uuidv4());
+  const [currentSessionId, setCurrentSessionId] = useState(() => {
+    return sessionStorage.getItem('serenova_active_session_id') || uuidv4();
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const scrollRef = useRef(null);
@@ -194,6 +196,14 @@ export default function ChatInterface({ user, isPro }) {
   const recognitionRef = useRef(null);
   const preferredLanguageRef = useRef(preferredLanguage);
   const memoryRef = useRef(memory);
+  const activeSessionRef = useRef(currentSessionId);
+
+  useEffect(() => {
+    activeSessionRef.current = currentSessionId;
+    if (currentSessionId) {
+      sessionStorage.setItem('serenova_active_session_id', currentSessionId);
+    }
+  }, [currentSessionId]);
 
   useEffect(() => {
     preferredLanguageRef.current = preferredLanguage;
@@ -242,7 +252,8 @@ export default function ChatInterface({ user, isPro }) {
         setSessions(s);
         if (!hasLoadedInitialSessions) {
           setHasLoadedInitialSessions(true);
-          if (s.length > 0) {
+          const savedActiveId = sessionStorage.getItem('serenova_active_session_id');
+          if (!savedActiveId && s.length > 0) {
             setCurrentSessionId(s[0].id);
           }
         }
@@ -274,17 +285,23 @@ export default function ChatInterface({ user, isPro }) {
           });
         setMessages(msgs);
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      } else {
-        setMessages([]);
       }
+      // If snapshot doesn't exist yet, do NOT wipe local optimistic messages!
     }, (error) => {
       console.error("[ChatInterface] RTDB messages error:", error);
     });
     return () => unsub();
   }, [user, currentSessionId]);
 
+  const handleSelectSession = (sid) => {
+    if (sid === currentSessionId) return;
+    setCurrentSessionId(sid);
+    setMessages([]);
+  };
+
   const handleNewChat = () => {
     const newId = uuidv4();
+    sessionStorage.setItem('serenova_active_session_id', newId);
     setCurrentSessionId(newId);
     setMessages([]);
   };
@@ -405,22 +422,25 @@ export default function ChatInterface({ user, isPro }) {
       }
       
       console.log("[ChatInterface] Filtering history context");
-      // Get history (last 10 messages)
+      // Include all prior completed messages in the current session (excluding the current optimistic message)
       const history = messages
-        .filter(m => m?.id && typeof m.id === 'string' && !m.id.startsWith('temp-'))
-        .slice(-10)
-        .map(m => ({ role: m.role || 'user', content: typeof m.content === 'string' ? m.content : "" }));
+        .filter(m => m && m.id !== tempUserMsgId && typeof m.content === 'string' && m.content.trim())
+        .slice(-50)
+        .map(m => ({
+          role: m.role === 'assistant' || m.role === 'model' ? 'assistant' : 'user',
+          content: m.content.trim()
+        }));
 
-      console.log("[ChatInterface] Dispatching POST request to AI Engine");
+      console.log("[ChatInterface] Dispatching POST request to AI Engine with history count:", history.length);
       abortControllerRef.current = new AbortController();
 
-      // Candidate backend URLs in priority order
+      // Candidate backend URLs in priority order (Local Python FastAPI is primary)
       const candidateBases = [
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
         import.meta.env.VITE_AI_BACKEND_URL,
         import.meta.env.VITE_PYTHON_BACKEND_URL,
         `http://${window.location.hostname}:8000`,
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
         import.meta.env.VITE_NODE_BACKEND_URL,
         'http://localhost:3000/api'
       ].filter(Boolean);
@@ -483,75 +503,76 @@ export default function ChatInterface({ user, isPro }) {
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        
-        // Keep the last element (which might be incomplete) in the buffer
-        buffer = lines.pop() || "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          
+          // Keep the last element (which might be incomplete) in the buffer
+          buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data:')) {
-            const rawData = trimmed.slice(5).trim();
-            if (!rawData || rawData === '[DONE]') {
-              continue;
-            }
-            try {
-              const payload = JSON.parse(rawData);
-              if (typeof payload === 'object' && payload !== null) {
-                if (payload.text) {
-                  fullResponse += payload.text;
-                  setStreamingContent(prev => prev + payload.text);
-                } else if (payload.message) {
-                  throw new Error(payload.message);
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data:')) {
+              const rawData = trimmed.slice(5).trim();
+              if (!rawData || rawData === '[DONE]') {
+                continue;
+              }
+              try {
+                const payload = JSON.parse(rawData);
+                if (typeof payload === 'object' && payload !== null) {
+                  if (payload.text) {
+                    fullResponse += payload.text;
+                    setStreamingContent(prev => prev + payload.text);
+                  } else if (payload.message) {
+                    throw new Error(payload.message);
+                  }
+                } else if (typeof payload === 'string') {
+                  fullResponse += payload;
+                  setStreamingContent(prev => prev + payload);
                 }
-              } else if (typeof payload === 'string') {
-                fullResponse += payload;
-                setStreamingContent(prev => prev + payload);
+              } catch (jsonErr) {
+                if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+                  throw jsonErr;
+                }
+                // Raw text chunk fallback
+                fullResponse += rawData;
+                setStreamingContent(prev => prev + rawData);
               }
-            } catch (jsonErr) {
-              if (jsonErr.message && !jsonErr.message.includes('JSON')) {
-                throw jsonErr;
-              }
-              // Raw text chunk fallback
-              fullResponse += rawData;
-              setStreamingContent(prev => prev + rawData);
+              scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
             }
-            scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
           }
         }
       }
-      }
 
-      console.log("[ChatInterface] Stream complete. Async saving AI response to RTDB...");
-      // 5. Save complete AI response to RTDB (Asynchronous, no await)
-      if (dbEnabled) {
+      console.log("[ChatInterface] Stream complete. Updating state & RTDB...");
+      const finalAssistantContent = fullResponse || "Error: No response generated by the assistant.";
+
+      // 1. Immediately update local state so subsequent turns have full conversation context
+      const newAiMessage = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: finalAssistantContent,
+        timestamp: new Date()
+      };
+      setMessages(prev => {
+        const withoutTempUser = prev.filter(m => m.id !== tempUserMsgId);
+        const hasUserMsg = withoutTempUser.some(m => m.role === 'user' && m.content === userText);
+        const userPart = hasUserMsg ? [] : [newUserMessage];
+        return [...withoutTempUser, ...userPart, newAiMessage];
+      });
+      setStreamingContent('');
+
+      // 2. Persist to RTDB if available
+      if (user?.uid && dbEnabled) {
         push(ref(rtdb, `users/${user.uid}/chats/${currentSessionId}/messages`), {
           role: 'assistant',
-          content: fullResponse || "Error processing request.",
+          content: finalAssistantContent,
           timestamp: serverTimestamp()
         }).catch(dbErr => {
-          console.error("[ChatInterface] Failed to save AI response to RTDB:", dbErr);
-        });
-      }
-
-      // If database is disabled, update the local messages state directly
-      if (!dbEnabled) {
-        console.log("[ChatInterface] DB disabled. Saving AI response locally");
-        const newAiMessage = {
-          id: `temp-ai-${Date.now()}`,
-          role: 'assistant',
-          content: fullResponse || "Error: No response generated by the assistant.",
-          timestamp: new Date()
-        };
-        // Remove duplicate temp user message if it's there, then append
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.id !== tempUserMsgId);
-          return [...filtered, { ...newUserMessage, id: `local-user-${Date.now()}` }, newAiMessage];
+          console.warn("[ChatInterface] RTDB push failed:", dbErr);
         });
       }
 
@@ -645,7 +666,7 @@ export default function ChatInterface({ user, isPro }) {
           {sessions.map(s => (
             <button
               key={s.id}
-              onClick={() => setCurrentSessionId(s.id)}
+              onClick={() => handleSelectSession(s.id)}
               className={`w-full text-left p-3 rounded-lg text-sm truncate transition-colors mb-1 ${currentSessionId === s.id ? 'bg-white border border-glass-border text-text-primary shadow-sm' : 'text-text-muted hover:bg-black/5'}`}
             >
               <MessageSquare size={14} className="inline mr-2 opacity-50" />
