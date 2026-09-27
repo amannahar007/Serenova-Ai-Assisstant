@@ -458,12 +458,15 @@ export default function ChatInterface({ user, isPro }) {
             import.meta.env.VITE_AI_BACKEND_URL,
             import.meta.env.VITE_PYTHON_BACKEND_URL,
             import.meta.env.VITE_NODE_BACKEND_URL,
-            'http://localhost:3000/api'
+            'http://localhost:3000/api',
+            'http://localhost:3000'
           ].filter(Boolean)
         : [
             import.meta.env.VITE_AI_BACKEND_URL,
             import.meta.env.VITE_PYTHON_BACKEND_URL,
-            import.meta.env.VITE_NODE_BACKEND_URL
+            import.meta.env.VITE_NODE_BACKEND_URL,
+            'https://serenova-node.onrender.com/api',
+            'https://serenova-node.onrender.com'
           ].filter(Boolean);
 
       // Remove duplicates

@@ -71,26 +71,25 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// â”€â”€â”€ DB-readiness guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Return 503 for API calls that arrive before MongoDB is connected
-app.use('/api', (req, res, next) => {
-    // Allow health-check through without DB
-    if (req.path === '/health') return next();
+// DB-readiness logging (allows stateless chat & fallback to proceed without 503 blocking)
+app.use(['/api', '/'], (req, res, next) => {
+    if (req.path === '/health' || req.path === '/api/health') return next();
     if (!isDbReady) {
-        return res.status(503).json({ detail: 'Backend is starting up. Please wait a moment and try again.' });
+        console.warn(`[API] Request received while DB is connecting: ${req.method} ${req.path}`);
     }
     next();
 });
 
-// â”€â”€â”€ Health check endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Frontend polls this to know when the backend is ready
-app.get('/api/health', (req, res) => {
-    res.json({ status: isDbReady ? 'ok' : 'starting', db: isDbReady });
+// Health check endpoint
+app.get(['/api/health', '/health'], (req, res) => {
+    res.json({ status: isDbReady ? 'ok' : 'connected_memory_fallback', db: isDbReady });
 });
 
-// Mount Routes
+// Mount Routes under both /api and root / (prevents 404 whether caller uses /api/chat or /chat)
 app.use('/api', chatRouter);
 app.use('/api', multimodalRouter);
+app.use('/', chatRouter);
+app.use('/', multimodalRouter);
 
 // Root Route
 app.get('/', (req, res) => {
