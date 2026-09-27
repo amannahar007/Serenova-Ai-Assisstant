@@ -3,15 +3,16 @@ import { functions, rtdb } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { onValue, ref, set, serverTimestamp } from 'firebase/database';
 import QRCode from 'react-qr-code';
-import { Brain, CheckCircle2, CreditCard, FileText, HeartPulse, ShieldCheck, Sparkles, Smartphone, Users, Watch } from 'lucide-react';
+import { Brain, CheckCircle2, CreditCard, FileText, HeartPulse, ShieldCheck, Sparkles, Smartphone, Users, Watch, Info } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 const UPI_ID = 'amannahar0807@oksbi';
 
 const premiumFeatures = [
-  { icon: Brain, label: 'Face and gesture health analysis' },
-  { icon: HeartPulse, label: 'Stress, fatigue, and heart-rate estimation' },
+  { icon: Brain, label: 'Real-time facial expression reflection check-in' },
+  { icon: HeartPulse, label: 'Mindful habit check-ins & wellness reflections' },
   { icon: Sparkles, label: 'Unlimited priority AI responses' },
-  { icon: FileText, label: 'Daily health card and reports' }
+  { icon: FileText, label: 'Daily wellness summaries and journal reports' }
 ];
 
 const tiers = [
@@ -28,7 +29,7 @@ const tiers = [
     price: 90,
     amount: 'Rs.90',
     suffix: '/ month',
-    body: 'Unlimited chat, face analysis, mood journal, daily health card',
+    body: 'Unlimited chat, expression check-in, wellness journal, daily wellness card',
     icon: Brain
   },
   {
@@ -36,7 +37,7 @@ const tiers = [
     price: 299,
     amount: 'Rs.299',
     suffix: '/ month',
-    body: 'Doctor connect, PDF reports, wearable sync, priority support',
+    body: 'Exportable wellness summaries, priority AI responses, email support',
     icon: Watch
   },
   {
@@ -44,7 +45,7 @@ const tiers = [
     price: 499,
     amount: 'Rs.499',
     suffix: '/ month',
-    body: '5 family members, shared wellness dashboard, family nudges',
+    body: '5 family members, shared wellness dashboard, family reflections',
     icon: Users
   }
 ];
@@ -254,80 +255,115 @@ export default function Subscription({ user, setIsPro }) {
           </div>
         </section>
 
-        <section className="grid gap-6">
-          <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Google Pay / UPI</p>
-                <h2 className="mt-1 text-2xl font-bold font-serif text-text-primary">Pay to {UPI_ID}</h2>
-                <p className="mt-2 text-sm leading-relaxed text-text-dim">
-                  Scan this QR in Google Pay, PhonePe, Paytm, or any UPI app. After payment, submit the transaction ID for admin verification.
-                </p>
-              </div>
-              <Smartphone className="shrink-0 text-neu-teal" size={34} />
-            </div>
-
-            <div className="mt-5 grid gap-5 md:grid-cols-[220px_1fr] md:items-center">
-              <div className="rounded-neu-md neu-card-flat p-4 bg-white flex items-center justify-center border border-white/80 shadow-neu-raised-sm">
-                <QRCode value={upiUrl} size={188} />
-              </div>
-              <div>
-                <div className="rounded-neu-md neu-card-flat p-4 border border-white/60 bg-neu-base">
-                  <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Selected plan</p>
-                  <p className="mt-1 text-3xl font-bold text-text-primary tracking-tight">{tier.amount}<span className="text-sm font-normal text-text-muted">{tier.suffix}</span></p>
-                  <p className="mt-1 text-sm font-semibold text-neu-teal">{tier.name} plan via UPI</p>
+        {isNative ? (
+          <section className="grid gap-6">
+            <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-neu-md neu-card-flat text-neu-teal flex items-center justify-center shrink-0 shadow-neu-raised-sm">
+                  <ShieldCheck size={26} />
                 </div>
-                <a href={upiUrl} className="mt-4 inline-flex w-full items-center justify-center rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu">
-                  Open Google Pay / UPI app
-                </a>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Google Play Billing</p>
+                  <h2 className="mt-1 text-2xl font-bold font-serif text-text-primary">Play Store In-App Subscription</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-dim">
+                    Per Google Play policy, in-app digital purchases and subscriptions on Android must go through Google Play's secure in-app billing system.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-neu-md neu-inset p-4 bg-neu-dark border border-[#ded7c8]/50">
+                <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Selected Tier</p>
+                <p className="mt-1 text-2xl font-bold text-text-primary">{tier.name} — {tier.amount}<span className="text-sm font-normal text-text-muted">{tier.suffix}</span></p>
+                <p className="mt-1.5 text-xs text-text-dim">{tier.body}</p>
+              </div>
+
+              <div className="mt-5 p-4 rounded-neu-md neu-card-flat bg-amber-50/70 border border-amber-800/15 text-xs text-amber-950 flex items-start gap-3">
+                <Info size={16} className="text-amber-800 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <p className="font-bold">Play Store Submission Note</p>
+                  <p className="mt-0.5">
+                    Google Play In-App Billing products will be connected upon Play Console listing approval. If you already hold an active subscription on the web, your status is automatically recognized here when signed in with the same account.
+                  </p>
+                </div>
               </div>
             </div>
+          </section>
+        ) : (
+          <section className="grid gap-6">
+            <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-neu-gold">Google Pay / UPI</p>
+                  <h2 className="mt-1 text-2xl font-bold font-serif text-text-primary">Pay to {UPI_ID}</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-dim">
+                    Scan this QR in Google Pay, PhonePe, Paytm, or any UPI app. After payment, submit the transaction ID for admin verification.
+                  </p>
+                </div>
+                <Smartphone className="shrink-0 text-neu-teal" size={34} />
+              </div>
 
-            <form onSubmit={submitUpiPayment} className="mt-6 grid gap-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-text-muted" htmlFor="upi-transaction">
-                UPI transaction ID
-              </label>
-              <input
-                id="upi-transaction"
-                value={transactionId}
-                onChange={(event) => setTransactionId(event.target.value)}
-                placeholder="Enter Google Pay transaction/reference ID"
-                className="rounded-neu-sm neu-inset bg-neu-dark px-4 py-3 text-sm text-text-primary placeholder:text-text-muted outline-none border border-[#ded7c8]/50 focus-neu"
-              />
-              <button disabled={loading || !transactionId.trim()} className="rounded-neu-sm neu-btn px-4 py-3 text-sm font-bold text-neu-teal transition-all focus-neu disabled:opacity-40">
-                {loading ? 'Submitting...' : 'Submit UPI payment for verification'}
+              <div className="mt-5 grid gap-5 md:grid-cols-[220px_1fr] md:items-center">
+                <div className="rounded-neu-md neu-card-flat p-4 bg-white flex items-center justify-center border border-white/80 shadow-neu-raised-sm">
+                  <QRCode value={upiUrl} size={188} />
+                </div>
+                <div>
+                  <div className="rounded-neu-md neu-card-flat p-4 border border-white/60 bg-neu-base">
+                    <p className="text-xs font-bold uppercase tracking-wider text-text-muted">Selected plan</p>
+                    <p className="mt-1 text-3xl font-bold text-text-primary tracking-tight">{tier.amount}<span className="text-sm font-normal text-text-muted">{tier.suffix}</span></p>
+                    <p className="mt-1 text-sm font-semibold text-neu-teal">{tier.name} plan via UPI</p>
+                  </div>
+                  <a href={upiUrl} className="mt-4 inline-flex w-full items-center justify-center rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu">
+                    Open Google Pay / UPI app
+                  </a>
+                </div>
+              </div>
+
+              <form onSubmit={submitUpiPayment} className="mt-6 grid gap-3">
+                <label className="text-xs font-bold uppercase tracking-wider text-text-muted" htmlFor="upi-transaction">
+                  UPI transaction ID
+                </label>
+                <input
+                  id="upi-transaction"
+                  value={transactionId}
+                  onChange={(event) => setTransactionId(event.target.value)}
+                  placeholder="Enter Google Pay transaction/reference ID"
+                  className="rounded-neu-sm neu-inset bg-neu-dark px-4 py-3 text-sm text-text-primary placeholder:text-text-muted outline-none border border-[#ded7c8]/50 focus-neu"
+                />
+                <button disabled={loading || !transactionId.trim()} className="rounded-neu-sm neu-btn px-4 py-3 text-sm font-bold text-neu-teal transition-all focus-neu disabled:opacity-40">
+                  {loading ? 'Submitting...' : 'Submit UPI payment for verification'}
+                </button>
+              </form>
+
+              {upiSubmitted && (
+                <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm font-bold text-amber-900 bg-amber-50/70 border border-amber-800/20">
+                  Payment submitted. Premium unlocks after admin verification.
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-neu-sm neu-card-flat flex items-center justify-center text-neu-teal shadow-neu-raised-sm">
+                  <CreditCard size={20} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold font-serif text-text-primary">Secure card/netbanking checkout</h2>
+                  <p className="text-sm text-text-dim">Razorpay remains available for automated Premium activation.</p>
+                </div>
+              </div>
+
+              {error && (
+                <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm text-red-800 bg-red-50 border border-red-200">
+                  {error}
+                </div>
+              )}
+
+              <button onClick={handleRazorpayUpgrade} disabled={loading || selectedTier !== 'Premium'} className="mt-5 w-full rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu disabled:opacity-40">
+                {selectedTier === 'Premium' ? (loading ? 'Opening secure checkout...' : 'Pay Premium with Razorpay') : 'Razorpay auto-checkout currently supports Premium'}
               </button>
-            </form>
-
-            {upiSubmitted && (
-              <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm font-bold text-amber-900 bg-amber-50/70 border border-amber-800/20">
-                Payment submitted. Premium unlocks after admin verification.
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-neu-xl neu-card p-6 bg-neu-base border border-white/80">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-neu-sm neu-card-flat flex items-center justify-center text-neu-teal shadow-neu-raised-sm">
-                <CreditCard size={20} />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold font-serif text-text-primary">Secure card/netbanking checkout</h2>
-                <p className="text-sm text-text-dim">Razorpay remains available for automated Premium activation.</p>
-              </div>
             </div>
-
-            {error && (
-              <div className="mt-4 rounded-neu-md neu-inset p-3.5 text-sm text-red-800 bg-red-50 border border-red-200">
-                {error}
-              </div>
-            )}
-
-            <button onClick={handleRazorpayUpgrade} disabled={loading || selectedTier !== 'Premium'} className="mt-5 w-full rounded-neu-sm neu-btn-teal px-4 py-3.5 text-sm font-bold text-white transition-all focus-neu disabled:opacity-40">
-              {selectedTier === 'Premium' ? (loading ? 'Opening secure checkout...' : 'Pay Premium with Razorpay') : 'Razorpay auto-checkout currently supports Premium'}
-            </button>
-          </div>
-        </section>
+          </section>
+        )}
       </div>
     </div>
   );

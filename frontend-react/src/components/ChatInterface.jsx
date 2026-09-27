@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { rtdb } from '../firebase';
 import { ref, push, set, onValue, query, orderByChild, serverTimestamp } from 'firebase/database';
-import { Send, Paperclip, Mic, Camera, Plus, MessageSquare, Square, Copy, Check, RefreshCw, Languages, Volume2, VolumeX } from 'lucide-react';
+import { Send, Paperclip, Mic, Camera, Plus, MessageSquare, Square, Copy, Check, RefreshCw, Languages, Volume2, VolumeX, AlertCircle, ShieldCheck, X } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -186,6 +187,8 @@ export default function ChatInterface({ user, isPro }) {
   const [isListening, setIsListening] = useState(false);
   const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [showMicRationale, setShowMicRationale] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -444,7 +447,8 @@ export default function ChatInterface({ user, isPro }) {
       abortControllerRef.current = new AbortController();
 
       // Candidate backend URLs in priority order
-      const isLocalhost = typeof window !== 'undefined' && (
+      const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+      const isLocalhost = !isNative && typeof window !== 'undefined' && (
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||
         window.location.hostname.startsWith('192.168.') ||
@@ -635,32 +639,71 @@ export default function ChatInterface({ user, isPro }) {
     }
   };
 
+  const handleMicClick = () => {
+    setVoiceError('');
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+    const hasAgreed = localStorage.getItem('serenova_mic_rationale_agreed');
+    if (!hasAgreed) {
+      setShowMicRationale(true);
+      return;
+    }
+    startVoiceInput();
+  };
+
+  const confirmMicRationale = () => {
+    localStorage.setItem('serenova_mic_rationale_agreed', 'true');
+    setShowMicRationale(false);
+    startVoiceInput();
+  };
+
   const startVoiceInput = () => {
+    setVoiceError('');
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setSpeechSupported(false);
+      setVoiceError('Voice speech recognition is not supported on this device/WebView.');
       return;
     }
     if (loading || isListening) return;
 
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.lang = getLanguageOption(preferredLanguageRef.current).speechLang;
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.maxAlternatives = 1;
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = getLanguageOption(preferredLanguageRef.current).speechLang;
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = async (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
-      if (!transcript) return;
-      setInput('');
-      await sendMessage(transcript);
-    };
+      recognition.onstart = () => {
+        setIsListening(true);
+        setVoiceError('');
+      };
+      recognition.onerror = (event) => {
+        setIsListening(false);
+        console.warn('Speech recognition error:', event?.error);
+        if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+          setVoiceError('Microphone permission was not granted. Please allow microphone access in Android app settings to use voice input, or type your message.');
+        } else if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
+          setVoiceError(`Voice input: ${event?.error || 'Please try again.'}`);
+        }
+      };
+      recognition.onend = () => setIsListening(false);
+      recognition.onresult = async (event) => {
+        const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+        if (!transcript) return;
+        setInput('');
+        await sendMessage(transcript);
+      };
 
-    recognition.start();
+      recognition.start();
+    } catch (e) {
+      console.error('Speech recognition start failed:', e);
+      setVoiceError('Could not start microphone speech recognition.');
+      setIsListening(false);
+    }
   };
 
   const stopVoiceInput = () => {
@@ -771,6 +814,15 @@ export default function ChatInterface({ user, isPro }) {
         </div>
 
         <div className="p-6 pb-8 bg-neu-base shrink-0 border-t border-[#ded7c8]/50">
+          {voiceError && (
+            <div className="max-w-4xl mx-auto mb-3 p-3 rounded-neu-sm bg-amber-50/90 border border-amber-200 text-amber-950 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-700 shrink-0" />
+                <span>{voiceError}</span>
+              </div>
+              <button type="button" onClick={() => setVoiceError('')} className="p-1 hover:bg-amber-100 rounded text-amber-800"><X size={14} /></button>
+            </div>
+          )}
           <form onSubmit={handleSend} className="neu-card-elevated p-2 sm:p-2.5 px-3 sm:px-4 flex items-center gap-2 sm:gap-3 bg-neu-base border border-white/80 w-full max-w-4xl mx-auto">
             <button type="button" className="hidden sm:flex w-10 h-10 items-center justify-center text-text-dim hover:text-neu-teal transition-all neu-btn rounded-neu-sm focus-neu" aria-label="Attach file" title="Attach file"><Paperclip size={18} /></button>
             <button type="button" className="hidden sm:flex w-10 h-10 items-center justify-center text-text-dim hover:text-neu-teal transition-all neu-btn rounded-neu-sm focus-neu" aria-label="Camera" title="Camera"><Camera size={18} /></button>
@@ -798,7 +850,7 @@ export default function ChatInterface({ user, isPro }) {
             </button>
             <button
               type="button"
-              onClick={isListening ? stopVoiceInput : startVoiceInput}
+              onClick={handleMicClick}
               disabled={loading}
               className={`w-10 h-10 flex items-center justify-center transition-all neu-btn rounded-neu-sm focus-neu disabled:opacity-40 ${isListening ? 'neu-inset text-red-600 bg-red-100' : 'text-text-dim hover:text-neu-teal'}`}
               aria-label="Voice input"
@@ -818,6 +870,45 @@ export default function ChatInterface({ user, isPro }) {
           </form>
         </div>
       </div>
+
+      {/* Play Store In-App Microphone Rationale Modal */}
+      {showMicRationale && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neu-base max-w-md w-full rounded-neu-xl neu-card p-6 border border-white/80 shadow-neu-raised-lg">
+            <div className="w-12 h-12 rounded-neu-md neu-card-flat text-neu-teal flex items-center justify-center mb-4 shadow-neu-raised-sm">
+              <Mic size={24} />
+            </div>
+            <h3 className="text-xl font-bold font-serif text-text-primary">Microphone Access for Voice Input</h3>
+            <p className="mt-2.5 text-sm text-text-dim leading-relaxed">
+              Serenova uses your microphone solely to transcribe your spoken voice into text prompts when you press the microphone button.
+            </p>
+            <div className="mt-3.5 p-3 rounded-neu-md neu-inset bg-neu-dark text-xs text-text-dim border border-[#ded7c8]/40">
+              <p className="font-semibold text-text-primary flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-neu-teal" /> Your Voice Privacy
+              </p>
+              <p className="mt-1">
+                Audio is processed in real time for speech recognition only. Raw audio recordings are never stored on your device or sent to third-party databases.
+              </p>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMicRationale(false)}
+                className="px-4 py-2.5 rounded-neu-sm neu-btn text-xs font-bold text-text-dim hover:text-text-primary focus-neu"
+              >
+                Not Now
+              </button>
+              <button
+                type="button"
+                onClick={confirmMicRationale}
+                className="px-5 py-2.5 rounded-neu-sm neu-btn-teal text-white text-xs font-bold focus-neu"
+              >
+                Continue & Enable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { Camera, CheckCircle2, ExternalLink, LoaderCircle, ShieldCheck, Square, Video } from 'lucide-react';
+import { Camera, CheckCircle2, ExternalLink, LoaderCircle, ShieldCheck, Square, Video, AlertCircle } from 'lucide-react';
+import { Camera as CapCamera } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 const MODEL_URI = (import.meta.env.VITE_FACE_MODEL_URL || 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model').replace(/\/$/, '');
 const SAMPLE_INTERVAL_MS = 2500;
@@ -78,6 +80,27 @@ export default function EmotionFusion({ isPro = false }) {
         if (cancelled) return;
         setModelsState('ready');
         setCameraState('requesting');
+
+        // On native Android/iOS, explicitly check & request native OS camera permission first
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const check = await CapCamera.checkPermissions();
+            if (check.camera !== 'granted') {
+              const requested = await CapCamera.requestPermissions({ permissions: ['camera'] });
+              if (requested.camera !== 'granted') {
+                const err = new Error('CameraPermissionDenied');
+                err.name = 'NotAllowedError';
+                throw err;
+              }
+            }
+          } catch (permErr) {
+            if (permErr.name === 'NotAllowedError' || permErr.message === 'CameraPermissionDenied') {
+              throw permErr;
+            }
+            console.warn('Native camera permission check error:', permErr);
+          }
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false,
@@ -115,8 +138,14 @@ export default function EmotionFusion({ isPro = false }) {
       } catch (startError) {
         if (!cancelled) {
           console.error('Expression check-in unavailable', startError);
-          setError(startError.name === 'NotAllowedError' ? 'Camera access was blocked. Allow it in your browser settings to run the optional check-in.' : 'Expression check-in could not start. Check your connection, then try again.');
+          const isDenied = startError.name === 'NotAllowedError' || startError.message === 'CameraPermissionDenied';
+          setError(
+            isDenied
+              ? 'Camera permission was not granted. Serenova requires camera access solely for on-device facial expression analysis. You can enable camera permission in your Android device App Settings.'
+              : 'Expression check-in could not start. Check your device camera availability and network connection, then try again.'
+          );
           setModelsState('error');
+          setCameraState('error');
           stopCamera();
         }
       }
@@ -214,7 +243,28 @@ export default function EmotionFusion({ isPro = false }) {
             </div>
           </aside>
         </div>
-        {error && <div className="mt-5 rounded-neu-md neu-inset p-4 text-sm text-red-800 bg-red-50 border border-red-200">{error}</div>}
+        {error && (
+          <div className="mt-5 rounded-neu-md neu-inset p-4 text-sm text-red-900 bg-red-50/90 border border-red-200 flex flex-col gap-2">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={18} />
+              <span className="leading-relaxed">{error}</span>
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <button 
+                onClick={restart} 
+                className="px-3 py-1.5 rounded-neu-sm bg-red-100 hover:bg-red-200 text-red-900 text-xs font-bold transition-all focus-neu"
+              >
+                Retry Camera
+              </button>
+              <button 
+                onClick={() => { setError(''); setConsented(false); }} 
+                className="px-3 py-1.5 rounded-neu-sm bg-white/80 hover:bg-white text-text-dim text-xs font-bold transition-all focus-neu"
+              >
+                Back to Details
+              </button>
+            </div>
+          </div>
+        )}
         {showCheckIn && !supportRequested && (
           <section className="mt-6 rounded-neu-xl neu-card p-6 border border-amber-900/15 bg-[#faeccd]/40">
             <p className="font-bold text-amber-950">A quick human check-in</p>
