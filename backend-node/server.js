@@ -36,9 +36,25 @@ const mongoSanitize = (req, res, next) => {
 };
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: false,
+}));
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://SERENOVA-ai.web.app'],
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+        if (!origin) return callback(null, true);
+        if (
+            origin.includes('localhost') ||
+            origin.includes('127.0.0.1') ||
+            origin.endsWith('.vercel.app') ||
+            origin.endsWith('.web.app') ||
+            origin.endsWith('.firebaseapp.com') ||
+            (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL)
+        ) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));

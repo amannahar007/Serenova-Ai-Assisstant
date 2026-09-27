@@ -443,16 +443,28 @@ export default function ChatInterface({ user, isPro }) {
       console.log("[ChatInterface] Dispatching POST request to AI Engine with history count:", history.length);
       abortControllerRef.current = new AbortController();
 
-      // Candidate backend URLs in priority order (Local Python FastAPI is primary)
-      const candidateBases = [
-        'http://127.0.0.1:8000',
-        'http://localhost:8000',
-        import.meta.env.VITE_AI_BACKEND_URL,
-        import.meta.env.VITE_PYTHON_BACKEND_URL,
-        `http://${window.location.hostname}:8000`,
-        import.meta.env.VITE_NODE_BACKEND_URL,
-        'http://localhost:3000/api'
-      ].filter(Boolean);
+      // Candidate backend URLs in priority order
+      const isLocalhost = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.startsWith('192.168.') ||
+        window.location.hostname === ''
+      );
+
+      const candidateBases = isLocalhost
+        ? [
+            'http://127.0.0.1:8000',
+            'http://localhost:8000',
+            import.meta.env.VITE_AI_BACKEND_URL,
+            import.meta.env.VITE_PYTHON_BACKEND_URL,
+            import.meta.env.VITE_NODE_BACKEND_URL,
+            'http://localhost:3000/api'
+          ].filter(Boolean)
+        : [
+            import.meta.env.VITE_AI_BACKEND_URL,
+            import.meta.env.VITE_PYTHON_BACKEND_URL,
+            import.meta.env.VITE_NODE_BACKEND_URL
+          ].filter(Boolean);
 
       // Remove duplicates
       const uniqueBases = Array.from(new Set(candidateBases.map(b => b.replace(/\/$/, ''))));
